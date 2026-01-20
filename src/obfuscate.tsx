@@ -35,7 +35,6 @@ function hideString(str: string, charFuncVar: string): string {
 
 // --- Helper: Dead Code Generator ---
 function getDeadCode(preset: string): string {
-  // Default intensity (Fast/Test)
   let intensity = 7;
   if (preset === "Medium") intensity = 25; 
   if (preset === "High") intensity = 40;   
@@ -57,8 +56,8 @@ function getDeadCode(preset: string): string {
   const vFakeFunc = genVar();
   
   // 3. Fake Function
-  junk += `local function ${vFakeFunc}(_p) return _p*${obfNum(2)} end; `;
-  junk += `local ${v1}=${obfNum(Math.floor(Math.random()*999))};for ${v2}=${obfNum(1)},${obfNum(intensity)} do ${v1}=(${v1}*${v2})%${obfNum(9999)}; ${vFakeFunc}(${v1}); end;`;
+  junk += `local function ${vFakeFunc}(_p) return _p*${obfNum(2)} end;`;
+  junk += `local ${v1}=${obfNum(Math.floor(Math.random()*999))};for ${v2}=${obfNum(1)},${obfNum(intensity)} do ${v1}=(${v1}*${v2})%${obfNum(9999)};${vFakeFunc}(${v1});end;`;
 
   return junk;
 }
@@ -76,7 +75,7 @@ function encryptString(str: string, key: number): string {
 
 export function obfuscateCode(code: string, engine: EngineType, preset: string): string {
   const isLua = engine === "LuaU";
-  const isTest = preset === "Test"; // Check for Test Mode
+  const isTest = preset === "Test"; 
 
   // --- Step 1: Strip Comments & Minify User Code ---
   let processedCode = code;
@@ -112,8 +111,9 @@ export function obfuscateCode(code: string, engine: EngineType, preset: string):
   
   // Logic Functions
   const vCrash = genVar();
-  // Only add Crash Logic if NOT in Test mode
-  let crashLogic = `local function ${vCrash}()return ${vCrash}()end`; 
+  
+  // FIX: Include semicolon inside the string, so empty string = no semicolon
+  let crashLogic = `local function ${vCrash}()return ${vCrash}()end;`; 
   if (isTest) crashLogic = "";
 
   const vDecrypt = genVar();
@@ -122,9 +122,10 @@ export function obfuscateCode(code: string, engine: EngineType, preset: string):
   const kKey = obfNum(encryptKey);
   const k256 = obfNum(256);
 
-  const decryptLogic = `local function ${vDecrypt}(${vStrArg})local _r={} for _i=1,#${vStrArg} do local _b=${vByte}(${vStrArg},_i) ${vInsert}(_r,${vChar}((_b-_i-${kKey})%${k256})) end return ${vConcat}(_r) end`;
+  // FIX: Added trailing semicolon
+  const decryptLogic = `local function ${vDecrypt}(${vStrArg})local _r={} for _i=1,#${vStrArg} do local _b=${vByte}(${vStrArg},_i) ${vInsert}(_r,${vChar}((_b-_i-${kKey})%${k256})) end return ${vConcat}(_r) end;`;
 
-  // Encrypt User Strings (Enabled for High, Medium, and Test)
+  // Encrypt User Strings
   if (preset !== "Fast") {
       processedCode = processedCode.replace(/"([^"\\]*(?:\\.[^"\\]*)*)"|'([^'\\]*(?:\\.[^'\\]*)*)'/g, (match, p1, p2) => {
           const raw = p1 || p2 || "";
@@ -142,15 +143,14 @@ export function obfuscateCode(code: string, engine: EngineType, preset: string):
   const strWait = hideString("wait", vChar);
   const strCheckIndex = hideString("CHECKINDEX", vChar);
 
-  // Define VM Loop, but set to empty string if Test Mode
-  let antiTamperLogic = `local ${vState}=${obfNum(1)};while ${vState}~=${obfNum(0)} do if ${vState}==${obfNum(1)} then ${loopDeadCode} if(getfenv and getfenv()[${strCheckIndex}])then ${vCrash}() end; ${vState}=${obfNum(2)}; elseif ${vState}==${obfNum(2)} then if(${vGetInfo}(${vTask}[${strWait}])[${strWhat}]~=${strC})then ${vCrash}() end; ${vState}=${obfNum(3)}; elseif ${vState}==${obfNum(3)} then ${vState}=${obfNum(0)}; end end`;
+  // FIX: Include trailing semicolon
+  let antiTamperLogic = `local ${vState}=${obfNum(1)};while ${vState}~=${obfNum(0)} do if ${vState}==${obfNum(1)} then ${loopDeadCode} if(getfenv and getfenv()[${strCheckIndex}])then ${vCrash}() end; ${vState}=${obfNum(2)}; elseif ${vState}==${obfNum(2)} then if(${vGetInfo}(${vTask}[${strWait}])[${strWhat}]~=${strC})then ${vCrash}() end; ${vState}=${obfNum(3)}; elseif ${vState}==${obfNum(3)} then ${vState}=${obfNum(0)}; end end;`;
   
   if (isTest) {
-    antiTamperLogic = ""; // Remove active protections for Test preset
+    antiTamperLogic = ""; 
   }
 
-  // --- DEAD CODE GENERATION (The 3 Blocks) ---
-  // Dead code stays enabled for Test mode to test file structure
+  // --- DEAD CODE GENERATION ---
   const deadBlock1 = getDeadCode(preset); 
   const deadBlock2 = getDeadCode(preset); 
   const deadBlock3 = getDeadCode(preset); 
@@ -169,6 +169,8 @@ export function obfuscateCode(code: string, engine: EngineType, preset: string):
   const headerEnd = isLua ? "]]" : "*/";
   const watermark = `${headerStart} This file is protected with Vexile v1.0.0 (discord.gg/vexile) ${headerEnd}`;
 
+  // FIX: Removed explicit semicolons between blocks.
+  // The blocks themselves now carry the semicolon if they are active.
   let rawScript = `
     (function()
       ${parserBomb}
@@ -182,10 +184,10 @@ export function obfuscateCode(code: string, engine: EngineType, preset: string):
       local ${vDebug}=debug;
       local ${vGetInfo}=${vDebug}.getinfo;
       local ${vTask}=task;
-      ${crashLogic};
+      ${crashLogic}
       ${deadBlock2}
-      ${decryptLogic};
-      ${antiTamperLogic};
+      ${decryptLogic}
+      ${antiTamperLogic}
       ${processedCode};
       ${deadBlock3}
     end)()
