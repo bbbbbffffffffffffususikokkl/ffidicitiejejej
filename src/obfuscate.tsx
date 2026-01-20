@@ -2,24 +2,19 @@
 
 type EngineType = "LuaU" | "JavaScript (MCBE)";
 
-// --- Helper: Generate Random Mangled Variable Names ---
-function genVar(length: number = 4): string {
-  const chars = "Il1O0"; 
+// --- Helper: Generate Random Hex Variable Names (e.g., _0x4F2, _0xA91) ---
+function genVar(): string {
   const hex = "0123456789ABCDEF";
-  
-  // 50/50 mix of Hex-style and Il1-style names
-  if (Math.random() > 0.5) {
-     let res = "_0x";
-     for(let i=0; i<3; i++) res += hex[Math.floor(Math.random() * hex.length)];
-     return res;
-  } else {
-     let res = "";
-     for(let i=0; i<length; i++) res += chars[Math.floor(Math.random() * chars.length)];
-     return "_" + res; 
+  let res = "_0x";
+  // Generate 3 random hex characters
+  for (let i = 0; i < 3; i++) {
+    res += hex[Math.floor(Math.random() * hex.length)];
   }
+  return res;
 }
 
 // --- Helper: Obfuscate Numbers (Math/Hex Mix) ---
+// Turns 10 -> "0xA" or "(5+5)"
 function obfNum(n: number): string {
   const method = Math.floor(Math.random() * 3);
   if (method === 0) return `0x${n.toString(16)}`; // Hex
@@ -68,7 +63,9 @@ function encryptString(str: string, key: number): string {
   let result = "";
   for (let i = 0; i < str.length; i++) {
     const charCode = str.charCodeAt(i);
-    const encryptedByte = (charCode + key + i) % 256;
+    // FIX: Added (i + 1) because Lua tables start at index 1, JS starts at 0.
+    // This fixes the "print('s') -> 'r'" off-by-one bug.
+    const encryptedByte = (charCode + key + (i + 1)) % 256;
     result += "\\" + encryptedByte;
   }
   return result;
@@ -95,17 +92,17 @@ export function obfuscateCode(code: string, engine: EngineType, preset: string):
   processedCode = processedCode.split('\n').map(line => line.trim()).filter(l => l.length > 0).join(' ');
 
   if (!isLua) {
-      return `/* Protected by Vexile */ ${processedCode}`;
+      return `/* This file is protected with Vexile v1.0.0 (discord.gg/vexile) */ ${processedCode}`;
   }
 
   // --- Step 2: Generate Obfuscation Logic ---
 
-  // Variable Names
+  // Variable Names (Now exclusively _0xHex style)
   const vDebug = genVar();
-  const vGetInfo = genVar(); // Local alias for debug.getinfo
+  const vGetInfo = genVar(); 
   const vString = genVar();
-  const vChar = genVar();    // Local alias for string.char
-  const vByte = genVar();    // Local alias for string.byte
+  const vChar = genVar();    
+  const vByte = genVar();    
   const vConcat = genVar();
   const vTable = genVar();
   const vInsert = genVar();
@@ -122,7 +119,7 @@ export function obfuscateCode(code: string, engine: EngineType, preset: string):
   const kKey = obfNum(encryptKey);
   const k256 = obfNum(256);
 
-  // FIX: Use locals directly (vByte, vInsert, vChar) NOT vString.vByte
+  // FIX: Decryptor logic matches (i+1) offset because Lua loops 1..#str automatically
   const decryptLogic = `local function ${vDecrypt}(${vStrArg})local _r={} for _i=1,#${vStrArg} do local _b=${vByte}(${vStrArg},_i) ${vInsert}(_r,${vChar}((_b-_i-${kKey})%${k256})) end return ${vConcat}(_r) end`;
 
   // Encrypt User Strings
@@ -139,21 +136,18 @@ export function obfuscateCode(code: string, engine: EngineType, preset: string):
   const deadCodeBlock = getDeadCode(preset);
   
   // Generate obfuscated strings for logic checks
-  // We pass 'vChar' (the local variable name) so it calls the local function
   const strWhat = hideString("what", vChar);
   const strC = hideString("C", vChar); 
   const strWait = hideString("wait", vChar);
   const strCheckIndex = hideString("CHECKINDEX", vChar);
 
   // VM Loop
-  // FIX: Access global 'getfenv' via direct call or global table if needed.
-  // FIX: debug.getinfo is now stored in local 'vGetInfo', so we call that directly.
   const antiTamperLogic = `local ${vState}=${obfNum(1)};while ${vState}~=${obfNum(0)} do if ${vState}==${obfNum(1)} then ${deadCodeBlock} if(getfenv and getfenv()[${strCheckIndex}])then ${vCrash}() end; ${vState}=${obfNum(2)}; elseif ${vState}==${obfNum(2)} then if(${vGetInfo}(${vTask}[${strWait}])[${strWhat}]~=${strC})then ${vCrash}() end; ${vState}=${obfNum(3)}; elseif ${vState}==${obfNum(3)} then ${preset==="High"?getDeadCode("Medium"):""} ${vState}=${obfNum(0)}; end end`;
 
   // Parser Bomb (High Only)
   let parserBomb = "";
   if (preset === "High") {
-     const bombDepth = 150;
+     const bombDepth = 200;
      const innerValue = `0x${Math.floor(Math.random()*10000).toString(16)}`; 
      parserBomb = `local ${genVar()} = ${"{".repeat(bombDepth)}${innerValue}${"}".repeat(bombDepth)};`;
   }
@@ -185,7 +179,6 @@ export function obfuscateCode(code: string, engine: EngineType, preset: string):
   `;
 
   // Minify the entire boilerplate
-  // Regex: Replace newlines with space, then multiple spaces with single space
   let minifiedScript = rawScript.replace(/\n/g, ' ').replace(/\s+/g, ' ').trim();
 
   return `${watermark}\n${minifiedScript}`;
