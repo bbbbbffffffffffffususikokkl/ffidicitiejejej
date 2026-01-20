@@ -18,14 +18,22 @@ function genVar(length: number = 4): string {
   }
 }
 
-// --- Helper: Dead Code Generator (Junk Data) ---
+// --- Helper: Hide Logic Strings (e.g. "what" -> "\119\104\97\116") ---
+function hideString(str: string): string {
+  let res = "";
+  for(let i=0; i<str.length; i++) {
+    res += "\\" + str.charCodeAt(i);
+  }
+  return res;
+}
+
+// --- Helper: Dead Code Generator ---
 function getDeadCode(preset: string): string {
   let intensity = 1; 
   if (preset === "Medium") intensity = 3;
   if (preset === "High") intensity = 10;
 
   let junk = "";
-  
   // Fake Memory Table 
   const junkTableSize = intensity * 50; 
   let tableContent = "";
@@ -38,7 +46,6 @@ function getDeadCode(preset: string): string {
   const v1 = genVar();
   const v2 = genVar();
   junk += `local ${v1} = ${Math.floor(Math.random()*999)}; for ${v2}=1, ${intensity*2} do ${v1}=(${v1}*${v2})%9999; end; `;
-
   return junk;
 }
 
@@ -56,19 +63,20 @@ function encryptString(str: string, key: number): string {
 export function obfuscateCode(code: string, engine: EngineType, preset: string): string {
   const isLua = engine === "LuaU";
 
-  // --- Step 1: Minification (Preserving Watermark Logic) ---
+  // --- Step 1: Strict Minification (Preserving Watermark) ---
   let processedCode = code;
 
   if (isLua) {
-    processedCode = processedCode
-      .replace(/--\[\[(?! This file is protected with Vexile)[\s\S]*?\]\]/g, "") 
-      .replace(/--(?![\[])(?!.*Vexile).*$/gm, ""); 
+    // 1. Remove block comments NOT containing "Vexile"
+    processedCode = processedCode.replace(/--\[\[(?! This file is protected with Vexile)[\s\S]*?\]\]/g, "");
+    // 2. Remove single line comments NOT containing "Vexile"
+    processedCode = processedCode.replace(/--(?![\[])(?!.*Vexile).*$/gm, ""); 
   } else {
-    processedCode = processedCode
-      .replace(/\/\*(?! This file is protected with Vexile)[\s\S]*?\*\//g, "") 
+    processedCode = processedCode.replace(/\/\*(?! This file is protected with Vexile)[\s\S]*?\*\//g, "") 
       .replace(/\/\/(?!.*Vexile).*$/gm, ""); 
   }
 
+  // 3. Collapse whitespace (The aggressive minifier)
   processedCode = processedCode
     .split('\n').map(line => line.trim()).filter(l => l.length > 0).join(' ');
 
@@ -79,26 +87,24 @@ export function obfuscateCode(code: string, engine: EngineType, preset: string):
 
   // --- Step 2: Advanced LuaU Obfuscation ---
 
-  // A. Generate Variable Names
+  // A. Generate Mappings
   const vDebug = genVar();
   const vGetInfo = genVar();
   const vString = genVar();
   const vChar = genVar();
   const vByte = genVar();
-  const vSub = genVar();
   const vConcat = genVar();
   const vTable = genVar();
   const vInsert = genVar();
-  const vMath = genVar();
   const vTask = genVar();
+  const vMath = genVar(); // Used for random math
   
-  // B. The "Crash" Function (Recursive Stack Overflow)
+  // B. Crash Function (Recursive Stack Overflow)
   const vCrash = genVar();
   const crashLogic = `local function ${vCrash}() return ${vCrash}() end`; 
   
-  // C. String Decryption Routine
+  // C. String Decryptor
   const vDecrypt = genVar();
-  const vKeyArg = genVar();
   const vStrArg = genVar();
   const encryptKey = Math.floor(Math.random() * 100) + 1;
   
@@ -113,7 +119,7 @@ export function obfuscateCode(code: string, engine: EngineType, preset: string):
     end
   `;
 
-  // D. Process User Strings
+  // D. Encrypt User Strings
   if (preset !== "Fast") {
       processedCode = processedCode.replace(/"([^"\\]*(?:\\.[^"\\]*)*)"|'([^'\\]*(?:\\.[^'\\]*)*)'/g, (match, p1, p2) => {
           const raw = p1 || p2 || "";
@@ -122,21 +128,32 @@ export function obfuscateCode(code: string, engine: EngineType, preset: string):
       });
   }
 
-  // E. Control Flow Flattening (The "VM" State Machine)
+  // E. Obfuscated Anti-Tamper Logic (Hidden VM Steps)
   const vState = genVar();
-  
   const deadCodeBlock = getDeadCode(preset);
+  
+  // Dynamic Keys:
+  // .what -> ["\119\104\97\116"]
+  const kWhat = `["${hideString("what")}"]`;
+  // "C" -> string.char(60+7)
+  const vCharC = `${vString}.${vChar}(60+7)`; 
+  // task.wait -> task["\119\97\105\116"]
+  const kWait = `["${hideString("wait")}"]`;
+  // Global Check Strings
+  const kCheckIndex = `["${hideString("CHECKINDEX")}"]`;
 
   const antiTamperLogic = `
     local ${vState} = 1;
     while ${vState} ~= 0 do
        if ${vState} == 1 then
           ${deadCodeBlock}
-          if (getfenv and getfenv().CHECKINDEX) then ${vCrash}() end;
+          -- Check: if getfenv().CHECKINDEX then crash
+          if (getfenv and getfenv()${kCheckIndex}) then ${vCrash}() end;
           ${vState} = 2;
        elseif ${vState} == 2 then
+          -- Check: if debug.getinfo(task.wait).what ~= "C" then crash
           local _db = ${vDebug}.${vGetInfo};
-          if (_db(${vTask}.wait).what ~= "C") then ${vCrash}() end;
+          if (_db(${vTask}${kWait})${kWhat} ~= ${vCharC}) then ${vCrash}() end;
           ${vState} = 3;
        elseif ${vState} == 3 then
           ${preset === "High" ? getDeadCode("Medium") : ""} 
@@ -145,14 +162,16 @@ export function obfuscateCode(code: string, engine: EngineType, preset: string):
     end
   `;
 
-  // F. Parser Bomb (High Only)
+  // F. Obfuscated Parser Bomb (High Only)
+  // Replaced "Vexile" with a random hex variable or 0 to hide intent
   let parserBomb = "";
   if (preset === "High" || preset == "Medium") {
-     const bombDepth = 150;
-     parserBomb = `local ${genVar()} = ${"{".repeat(bombDepth)} "Vexile" ${"}".repeat(bombDepth)};`;
+     const bombDepth = 200;
+     const innerValue = `0x${Math.floor(Math.random()*10000).toString(16)}`; // Random Hex e.g. 0xA4F2
+     parserBomb = `local ${genVar()} = ${"{".repeat(bombDepth)} ${innerValue} ${"}".repeat(bombDepth)};`;
   }
 
-  // --- Step 3: Final Assembly (Watermark + Logic) ---
+  // --- Step 3: Final Assembly ---
   
   const headerStart = isLua ? "--[[" : "/*";
   const headerEnd = isLua ? "]]" : "*/";
@@ -178,5 +197,6 @@ export function obfuscateCode(code: string, engine: EngineType, preset: string):
   ${processedCode}
 end)()
   `;
+
   return `${watermark}\n${finalScript}`;
 }
