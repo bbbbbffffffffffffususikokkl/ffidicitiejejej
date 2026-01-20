@@ -33,30 +33,30 @@ function hideString(str: string, charFuncVar: string): string {
   return `${charFuncVar}(${args.join(',')})`;
 }
 
-// --- Helper: Dead Code Generator (Now with MASSIVE Bloat) ---
+// --- Helper: Dead Code Generator ---
 function getDeadCode(preset: string): string {
-  let intensity = 1; 
-  if (preset === "Medium") intensity = 20; // Increased
-  if (preset === "High") intensity = 40;   // Massively Increased for 200% bloat
+  // Default intensity (Fast/Test)
+  let intensity = 7;
+  if (preset === "Medium") intensity = 25; 
+  if (preset === "High") intensity = 40;   
 
   let junk = "";
   
-  // 1. Fake Memory Table (The "Bulk" bloat)
+  // 1. Fake Memory Table
   const junkTableSize = intensity * 25; 
   let tableContent = "";
   for(let i=0; i<junkTableSize; i++) {
-     // Generate random strings of length 8-12 to consume bytes
      const str = Math.random().toString(36).substring(2, 10) + Math.random().toString(36).substring(2, 6);
      tableContent += `"${str}",`;
   }
   junk += `local ${genVar()}={${tableContent}};`;
 
-  // 2. Fake Math Loop (Visual Confusion)
+  // 2. Fake Math Loop
   const v1 = genVar();
   const v2 = genVar();
   const vFakeFunc = genVar();
   
-  // 3. Fake Function (Logic Bloat)
+  // 3. Fake Function
   junk += `local function ${vFakeFunc}(_p) return _p*${obfNum(2)} end; `;
   junk += `local ${v1}=${obfNum(Math.floor(Math.random()*999))};for ${v2}=${obfNum(1)},${obfNum(intensity)} do ${v1}=(${v1}*${v2})%${obfNum(9999)}; ${vFakeFunc}(${v1}); end;`;
 
@@ -76,6 +76,7 @@ function encryptString(str: string, key: number): string {
 
 export function obfuscateCode(code: string, engine: EngineType, preset: string): string {
   const isLua = engine === "LuaU";
+  const isTest = preset === "Test"; // Check for Test Mode
 
   // --- Step 1: Strip Comments & Minify User Code ---
   let processedCode = code;
@@ -111,8 +112,10 @@ export function obfuscateCode(code: string, engine: EngineType, preset: string):
   
   // Logic Functions
   const vCrash = genVar();
-  const crashLogic = `local function ${vCrash}()return ${vCrash}()end`; 
-  
+  // Only add Crash Logic if NOT in Test mode
+  let crashLogic = `local function ${vCrash}()return ${vCrash}()end`; 
+  if (isTest) crashLogic = "";
+
   const vDecrypt = genVar();
   const vStrArg = genVar();
   const encryptKey = Math.floor(Math.random() * 100) + 1;
@@ -121,7 +124,7 @@ export function obfuscateCode(code: string, engine: EngineType, preset: string):
 
   const decryptLogic = `local function ${vDecrypt}(${vStrArg})local _r={} for _i=1,#${vStrArg} do local _b=${vByte}(${vStrArg},_i) ${vInsert}(_r,${vChar}((_b-_i-${kKey})%${k256})) end return ${vConcat}(_r) end`;
 
-  // Encrypt User Strings
+  // Encrypt User Strings (Enabled for High, Medium, and Test)
   if (preset !== "Fast") {
       processedCode = processedCode.replace(/"([^"\\]*(?:\\.[^"\\]*)*)"|'([^'\\]*(?:\\.[^'\\]*)*)'/g, (match, p1, p2) => {
           const raw = p1 || p2 || "";
@@ -132,7 +135,6 @@ export function obfuscateCode(code: string, engine: EngineType, preset: string):
 
   // Anti-Tamper State Machine
   const vState = genVar();
-  // We use a lighter dead code block inside the loop to avoid lag, but it's still there
   const loopDeadCode = getDeadCode(preset === "High" ? "Medium" : "Fast");
   
   const strWhat = hideString("what", vChar);
@@ -140,12 +142,18 @@ export function obfuscateCode(code: string, engine: EngineType, preset: string):
   const strWait = hideString("wait", vChar);
   const strCheckIndex = hideString("CHECKINDEX", vChar);
 
-  const antiTamperLogic = `local ${vState}=${obfNum(1)};while ${vState}~=${obfNum(0)} do if ${vState}==${obfNum(1)} then ${loopDeadCode} if(getfenv and getfenv()[${strCheckIndex}])then ${vCrash}() end; ${vState}=${obfNum(2)}; elseif ${vState}==${obfNum(2)} then if(${vGetInfo}(${vTask}[${strWait}])[${strWhat}]~=${strC})then ${vCrash}() end; ${vState}=${obfNum(3)}; elseif ${vState}==${obfNum(3)} then ${vState}=${obfNum(0)}; end end`;
+  // Define VM Loop, but set to empty string if Test Mode
+  let antiTamperLogic = `local ${vState}=${obfNum(1)};while ${vState}~=${obfNum(0)} do if ${vState}==${obfNum(1)} then ${loopDeadCode} if(getfenv and getfenv()[${strCheckIndex}])then ${vCrash}() end; ${vState}=${obfNum(2)}; elseif ${vState}==${obfNum(2)} then if(${vGetInfo}(${vTask}[${strWait}])[${strWhat}]~=${strC})then ${vCrash}() end; ${vState}=${obfNum(3)}; elseif ${vState}==${obfNum(3)} then ${vState}=${obfNum(0)}; end end`;
+  
+  if (isTest) {
+    antiTamperLogic = ""; // Remove active protections for Test preset
+  }
 
   // --- DEAD CODE GENERATION (The 3 Blocks) ---
-  const deadBlock1 = getDeadCode(preset); // Start
-  const deadBlock2 = getDeadCode(preset); // Middle
-  const deadBlock3 = getDeadCode(preset); // End
+  // Dead code stays enabled for Test mode to test file structure
+  const deadBlock1 = getDeadCode(preset); 
+  const deadBlock2 = getDeadCode(preset); 
+  const deadBlock3 = getDeadCode(preset); 
 
   // Parser Bomb (High Only)
   let parserBomb = "";
