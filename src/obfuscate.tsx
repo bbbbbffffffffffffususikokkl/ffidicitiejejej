@@ -7,6 +7,7 @@ function genVar(length: number = 4): string {
   const chars = "Il1O0"; 
   const hex = "0123456789ABCDEF";
   
+  // 50/50 mix of Hex-style and Il1-style names
   if (Math.random() > 0.5) {
      let res = "_0x";
      for(let i=0; i<3; i++) res += hex[Math.floor(Math.random() * hex.length)];
@@ -18,13 +19,26 @@ function genVar(length: number = 4): string {
   }
 }
 
-// --- Helper: Hide Logic Strings (e.g. "what" -> "\119\104\97\116") ---
-function hideString(str: string): string {
-  let res = "";
-  for(let i=0; i<str.length; i++) {
-    res += "\\" + str.charCodeAt(i);
+// --- Helper: Obfuscate Numbers (Math/Hex Mix) ---
+function obfNum(n: number): string {
+  const method = Math.floor(Math.random() * 3);
+  if (method === 0) return `0x${n.toString(16)}`; // Hex
+  if (method === 1) { // Addition
+      const part1 = Math.floor(Math.random() * n);
+      const part2 = n - part1;
+      return `(${part1}+${part2})`; 
   }
-  return res;
+  return `(${n})`; // Standard wrapped
+}
+
+// --- Helper: Hide Logic Strings using Obfuscated Numbers ---
+// Uses the local 'char' function variable, not string.char
+function hideString(str: string, charFuncVar: string): string {
+  let args = [];
+  for(let i=0; i<str.length; i++) {
+    args.push(obfNum(str.charCodeAt(i)));
+  }
+  return `${charFuncVar}(${args.join(',')})`;
 }
 
 // --- Helper: Dead Code Generator ---
@@ -35,17 +49,17 @@ function getDeadCode(preset: string): string {
 
   let junk = "";
   // Fake Memory Table 
-  const junkTableSize = intensity * 50; 
+  const junkTableSize = intensity * 30; 
   let tableContent = "";
   for(let i=0; i<junkTableSize; i++) {
-     tableContent += `"${Math.random().toString(36).substring(7)}", `;
+     tableContent += `"${Math.random().toString(36).substring(7)}",`;
   }
-  junk += `local ${genVar()} = {${tableContent}}; `;
+  junk += `local ${genVar()}={${tableContent}};`;
 
   // Fake Math Loop
   const v1 = genVar();
   const v2 = genVar();
-  junk += `local ${v1} = ${Math.floor(Math.random()*999)}; for ${v2}=1, ${intensity*2} do ${v1}=(${v1}*${v2})%9999; end; `;
+  junk += `local ${v1}=${obfNum(Math.floor(Math.random()*999))};for ${v2}=${obfNum(1)},${obfNum(intensity*2)} do ${v1}=(${v1}*${v2})%${obfNum(9999)};end;`;
   return junk;
 }
 
@@ -63,63 +77,55 @@ function encryptString(str: string, key: number): string {
 export function obfuscateCode(code: string, engine: EngineType, preset: string): string {
   const isLua = engine === "LuaU";
 
-  // --- Step 1: Strict Minification (Preserving Watermark) ---
+  // --- Step 1: Strip Comments from User Code ---
   let processedCode = code;
 
   if (isLua) {
-    // 1. Remove block comments NOT containing "Vexile"
-    processedCode = processedCode.replace(/--\[\[(?! This file is protected with Vexile)[\s\S]*?\]\]/g, "");
-    // 2. Remove single line comments NOT containing "Vexile"
-    processedCode = processedCode.replace(/--(?![\[])(?!.*Vexile).*$/gm, ""); 
+    // Remove comments, preserving Watermark
+    processedCode = processedCode
+      .replace(/--\[\[(?! This file is protected with Vexile)[\s\S]*?\]\]/g, "")
+      .replace(/--(?![\[])(?!.*Vexile).*$/gm, ""); 
   } else {
-    processedCode = processedCode.replace(/\/\*(?! This file is protected with Vexile)[\s\S]*?\*\//g, "") 
+    processedCode = processedCode
+      .replace(/\/\*(?! This file is protected with Vexile)[\s\S]*?\*\//g, "") 
       .replace(/\/\/(?!.*Vexile).*$/gm, ""); 
   }
-
-  // 3. Collapse whitespace (The aggressive minifier)
-  processedCode = processedCode
-    .split('\n').map(line => line.trim()).filter(l => l.length > 0).join(' ');
-
+  
+  // Basic pre-minification of user code
+  processedCode = processedCode.split('\n').map(line => line.trim()).filter(l => l.length > 0).join(' ');
 
   if (!isLua) {
       return `/* Protected by Vexile */ ${processedCode}`;
   }
 
-  // --- Step 2: Advanced LuaU Obfuscation ---
+  // --- Step 2: Generate Obfuscation Logic ---
 
-  // A. Generate Mappings
+  // Variable Names
   const vDebug = genVar();
-  const vGetInfo = genVar();
+  const vGetInfo = genVar(); // Local alias for debug.getinfo
   const vString = genVar();
-  const vChar = genVar();
-  const vByte = genVar();
+  const vChar = genVar();    // Local alias for string.char
+  const vByte = genVar();    // Local alias for string.byte
   const vConcat = genVar();
   const vTable = genVar();
   const vInsert = genVar();
   const vTask = genVar();
-  const vMath = genVar(); // Used for random math
   
-  // B. Crash Function (Recursive Stack Overflow)
+  // Crash Function (Recursive Stack Overflow)
   const vCrash = genVar();
-  const crashLogic = `local function ${vCrash}() return ${vCrash}() end`; 
+  const crashLogic = `local function ${vCrash}()return ${vCrash}()end`; 
   
-  // C. String Decryptor
+  // String Decryptor
   const vDecrypt = genVar();
   const vStrArg = genVar();
   const encryptKey = Math.floor(Math.random() * 100) + 1;
-  
-  const decryptLogic = `
-    local function ${vDecrypt}(${vStrArg})
-      local _r = {}
-      for _i = 1, #${vStrArg} do
-         local _b = ${vString}.${vByte}(${vStrArg}, _i)
-         ${vTable}.${vInsert}(_r, ${vString}.${vChar}((_b - _i - ${encryptKey}) % 256))
-      end
-      return ${vTable}.${vConcat}(_r)
-    end
-  `;
+  const kKey = obfNum(encryptKey);
+  const k256 = obfNum(256);
 
-  // D. Encrypt User Strings
+  // FIX: Use locals directly (vByte, vInsert, vChar) NOT vString.vByte
+  const decryptLogic = `local function ${vDecrypt}(${vStrArg})local _r={} for _i=1,#${vStrArg} do local _b=${vByte}(${vStrArg},_i) ${vInsert}(_r,${vChar}((_b-_i-${kKey})%${k256})) end return ${vConcat}(_r) end`;
+
+  // Encrypt User Strings
   if (preset !== "Fast") {
       processedCode = processedCode.replace(/"([^"\\]*(?:\\.[^"\\]*)*)"|'([^'\\]*(?:\\.[^'\\]*)*)'/g, (match, p1, p2) => {
           const raw = p1 || p2 || "";
@@ -128,47 +134,28 @@ export function obfuscateCode(code: string, engine: EngineType, preset: string):
       });
   }
 
-  // E. Obfuscated Anti-Tamper Logic (Hidden VM Steps)
+  // Anti-Tamper Logic Strings
   const vState = genVar();
   const deadCodeBlock = getDeadCode(preset);
   
-  // Dynamic Keys:
-  // .what -> ["\119\104\97\116"]
-  const kWhat = `["${hideString("what")}"]`;
-  // "C" -> string.char(60+7)
-  const vCharC = `${vString}.${vChar}(60+7)`; 
-  // task.wait -> task["\119\97\105\116"]
-  const kWait = `["${hideString("wait")}"]`;
-  // Global Check Strings
-  const kCheckIndex = `["${hideString("CHECKINDEX")}"]`;
+  // Generate obfuscated strings for logic checks
+  // We pass 'vChar' (the local variable name) so it calls the local function
+  const strWhat = hideString("what", vChar);
+  const strC = hideString("C", vChar); 
+  const strWait = hideString("wait", vChar);
+  const strCheckIndex = hideString("CHECKINDEX", vChar);
 
-  const antiTamperLogic = `
-    local ${vState} = 1;
-    while ${vState} ~= 0 do
-       if ${vState} == 1 then
-          ${deadCodeBlock}
-          -- Check: if getfenv().CHECKINDEX then crash
-          if (getfenv and getfenv()${kCheckIndex}) then ${vCrash}() end;
-          ${vState} = 2;
-       elseif ${vState} == 2 then
-          -- Check: if debug.getinfo(task.wait).what ~= "C" then crash
-          local _db = ${vDebug}.${vGetInfo};
-          if (_db(${vTask}${kWait})${kWhat} ~= ${vCharC}) then ${vCrash}() end;
-          ${vState} = 3;
-       elseif ${vState} == 3 then
-          ${preset === "High" ? getDeadCode("Medium") : ""} 
-          ${vState} = 0;
-       end
-    end
-  `;
+  // VM Loop
+  // FIX: Access global 'getfenv' via direct call or global table if needed.
+  // FIX: debug.getinfo is now stored in local 'vGetInfo', so we call that directly.
+  const antiTamperLogic = `local ${vState}=${obfNum(1)};while ${vState}~=${obfNum(0)} do if ${vState}==${obfNum(1)} then ${deadCodeBlock} if(getfenv and getfenv()[${strCheckIndex}])then ${vCrash}() end; ${vState}=${obfNum(2)}; elseif ${vState}==${obfNum(2)} then if(${vGetInfo}(${vTask}[${strWait}])[${strWhat}]~=${strC})then ${vCrash}() end; ${vState}=${obfNum(3)}; elseif ${vState}==${obfNum(3)} then ${preset==="High"?getDeadCode("Medium"):""} ${vState}=${obfNum(0)}; end end`;
 
-  // F. Obfuscated Parser Bomb (High Only)
-  // Replaced "Vexile" with a random hex variable or 0 to hide intent
+  // Parser Bomb (High Only)
   let parserBomb = "";
-  if (preset === "High" || preset == "Medium") {
-     const bombDepth = 200;
-     const innerValue = `0x${Math.floor(Math.random()*10000).toString(16)}`; // Random Hex e.g. 0xA4F2
-     parserBomb = `local ${genVar()} = ${"{".repeat(bombDepth)} ${innerValue} ${"}".repeat(bombDepth)};`;
+  if (preset === "High") {
+     const bombDepth = 150;
+     const innerValue = `0x${Math.floor(Math.random()*10000).toString(16)}`; 
+     parserBomb = `local ${genVar()} = ${"{".repeat(bombDepth)}${innerValue}${"}".repeat(bombDepth)};`;
   }
 
   // --- Step 3: Final Assembly ---
@@ -177,26 +164,29 @@ export function obfuscateCode(code: string, engine: EngineType, preset: string):
   const headerEnd = isLua ? "]]" : "*/";
   const watermark = `${headerStart} This file is protected with Vexile v1.0.0 (discord.gg/vexile) ${headerEnd}`;
 
-  const finalScript = `
-(function()
-  ${parserBomb}
-  local ${vString} = string;
-  local ${vChar} = ${vString}.char;
-  local ${vByte} = ${vString}.byte;
-  local ${vTable} = table;
-  local ${vInsert} = ${vTable}.insert;
-  local ${vConcat} = ${vTable}.concat;
-  local ${vDebug} = debug;
-  local ${vTask} = task;
-  
-  ${crashLogic}
-  ${decryptLogic}
-  
-  ${antiTamperLogic}
-
-  ${processedCode}
-end)()
+  // We explicitly define the locals here.
+  let rawScript = `
+    (function()
+      ${parserBomb}
+      local ${vString}=string;
+      local ${vChar}=${vString}.char;
+      local ${vByte}=${vString}.byte;
+      local ${vTable}=table;
+      local ${vInsert}=${vTable}.insert;
+      local ${vConcat}=${vTable}.concat;
+      local ${vDebug}=debug;
+      local ${vGetInfo}=${vDebug}.getinfo;
+      local ${vTask}=task;
+      ${crashLogic};
+      ${decryptLogic};
+      ${antiTamperLogic};
+      ${processedCode};
+    end)()
   `;
 
-  return `${watermark}\n${finalScript}`;
+  // Minify the entire boilerplate
+  // Regex: Replace newlines with space, then multiple spaces with single space
+  let minifiedScript = rawScript.replace(/\n/g, ' ').replace(/\s+/g, ' ').trim();
+
+  return `${watermark}\n${minifiedScript}`;
 }
