@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Shield, Sword, Zap, Copy, Check } from 'lucide-react'; // Ensure you install lucide-react
+import { obfuscateCode } from './obfuscate';
 
 // Preset Data Configuration
 const PRESETS = {
@@ -36,19 +37,19 @@ export default function App() {
 
   // Dynamic Placeholder based on Engine
   const placeholderText = engine === "LuaU" 
-    ? 'print("hello, world!")' 
-    : 'console.log("hello, world!")';
+    ? 'print("Hello, World!")' 
+    : 'console.log("Hello, World!")';
 
-  const handleObfuscate = () => {
+    const handleObfuscate = () => {
     if (!inputCode) return;
-    
-    // SIMULATION: In a real app, you would call your tRPC backend here.
-    // For now, we just act like it worked so you can test the UI.
-    setTimeout(() => {
-      setOutputCode(`-- Obfuscated by Vexile (${preset} Mode)\n-- Engine: ${engine}\n\n${btoa(inputCode)}`); 
+    const result = obfuscateCode(inputCode, engine, preset);
+
+    //setTimeout(() => {
+      setOutputCode(result); 
       setShowResult(true);
-    }, 600); // Fake delay for realism
+   //}, 600); 
   };
+
 
   const handleCopy = () => {
     navigator.clipboard.writeText(outputCode);
@@ -103,9 +104,9 @@ export default function App() {
                 onChange={(e) => setPreset(e.target.value as PresetType)}
                 className="w-full bg-neutral-900 border border-neutral-800 text-white rounded-lg p-3 outline-none focus:ring-2 focus:ring-indigo-500/50 appearance-none cursor-pointer hover:border-neutral-700 transition-colors"
               >
-                <option value="High">High (Shield)</option>
-                <option value="Medium">Medium (Sword)</option>
-                <option value="Fast">Fast (Lightning)</option>
+                <option value="High">🛡️ High</option>
+                <option value="Medium">🗡️ Medium</option>
+                <option value="Fast">⚡️ Fast</option>
               </select>
               <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-neutral-500">▼</div>
             </div>
