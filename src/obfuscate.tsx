@@ -126,7 +126,7 @@ export function obfuscateCode(code: string, engine: EngineType, preset: string):
   const decryptLogic = `local function ${vDecrypt}(${vStrArg})local _r={} for _i=1,#${vStrArg} do local _b=${vByte}(${vStrArg},_i) ${vInsert}(_r,${vChar}((_b-_i-${kKey})%${k256})) end return ${vConcat}(_r) end;`;
 
   // Encrypt User Strings
-  if (preset !== "Fast") {
+  if (preset == "High" || preset == "Medium" || preset == "Fast") {
       processedCode = processedCode.replace(/"([^"\\]*(?:\\.[^"\\]*)*)"|'([^'\\]*(?:\\.[^'\\]*)*)'/g, (match, p1, p2) => {
           const raw = p1 || p2 || "";
           if (raw.length === 0) return match;
@@ -157,7 +157,7 @@ export function obfuscateCode(code: string, engine: EngineType, preset: string):
 
   // Parser Bomb (High Only)
   let parserBomb = "";
-  if (preset === "High") {
+  if (preset === "High" || preset == "Medium") {
      const bombDepth = 200;
      const innerValue = `0x${Math.floor(Math.random()*10000).toString(16)}`; 
      parserBomb = `local ${genVar()} = ${"{".repeat(bombDepth)}${innerValue}${"}".repeat(bombDepth)};`;
