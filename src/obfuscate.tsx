@@ -27,27 +27,23 @@ function hideString(str: string, charFuncVar: string): string {
 
 function cleanLuaU(code: string): string {
     return code
-        // [NEW] Fixes "Expected : not ." error
-        // Automatically converts game:GetService("Players") -> game["Players"]
+        // [IMPORTANT] Auto-convert GetService to Index to prevent VM errors
         .replace(/:\s*GetService\s*\(\s*(["'])([^"']+)\1\s*\)/g, '["$2"]')
 
-        // 1. Remove Type Definitions
+        // Remove Type Definitions
         .replace(/([a-zA-Z0-9_]+):\s*[a-zA-Z0-9_\.]+(?=[,\)])/g, "$1") 
         .replace(/([a-zA-Z0-9_]+):\s*[a-zA-Z0-9_\.]+(?=\s*=)/g, "$1")
         
-        // 2. Fix Compound Operators
+        // Fix Compound Operators
         .replace(/([a-zA-Z0-9_\.\[\]"']+)\s*\+=\s*([^;\r\n]+)/g, "$1 = $1 + ($2)")
         .replace(/([a-zA-Z0-9_\.\[\]"']+)\s*\-=\s*([^;\r\n]+)/g, "$1 = $1 - ($2)")
         .replace(/([a-zA-Z0-9_\.\[\]"']+)\s*\*\=\s*([^;\r\n]+)/g, "$1 = $1 * ($2)")
         .replace(/([a-zA-Z0-9_\.\[\]"']+)\s*\/\=\s*([^;\r\n]+)/g, "$1 = $1 / ($2)")
         
-        // 3. Remove 'continue'
+        // Remove continue/types
         .replace(/\bcontinue\b/g, " ")
-        
-        // 4. Remove types
         .replace(/export\s+type\s+[a-zA-Z0-9_]+\s*=.+$/gm, "") 
         .replace(/type\s+[a-zA-Z0-9_]+\s*=.+$/gm, "")
-        
         .replace(/^\s*[\r\n]/gm, "");
 }
 
