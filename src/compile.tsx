@@ -6,7 +6,8 @@ enum Opcode {
   OP_GETGLOBAL = 2,
   OP_GETTABLE = 3,
   OP_CALL = 4,
-  OP_EXIT = 5
+  OP_EXIT = 5,
+  OP_SELF = 6  // [NEW] Handles colon calls (game:GetService)
 }
 
 export class VexileCompiler {
@@ -37,8 +38,6 @@ export class VexileCompiler {
 
         this.emit(Opcode.OP_EXIT);
 
-        // [FIX] Use Decimal Escapes (\123) instead of Base64
-        // This ensures the Lua VM reads the exact raw byte values (0-255)
         let bytecodeStr = "";
         this.instructions.forEach(byte => {
             bytecodeStr += "\\" + (byte % 256).toString();
@@ -64,9 +63,27 @@ export class VexileCompiler {
 
     private compileExpression(node: any) {
         if (node.type === 'CallExpression') {
-            this.compileExpression(node.base);
-            node.arguments.forEach((arg: any) => this.compileExpression(arg));
-            this.emit(Opcode.OP_CALL, 0, node.arguments.length);
+            // Check if this is a method call (game:GetService)
+            // luaparse puts the method name in 'identifier' for colon calls
+            if (node.identifier) {
+                // 1. Compile the object (game) -> Pushes [game]
+                this.compileExpression(node.base); 
+                
+                // 2. Emit OP_SELF to prepare stack -> [GetService, game]
+                const idx = this.addConstant(node.identifier.name);
+                this.emit(Opcode.OP_SELF, 0, idx + 1);
+
+                // 3. Compile args -> [GetService, game, "Players"]
+                node.arguments.forEach((arg: any) => this.compileExpression(arg));
+                
+                // 4. Call (Args count + 1 for 'self')
+                this.emit(Opcode.OP_CALL, 0, node.arguments.length + 1);
+            } else {
+                // Regular call (game.Workspace or print)
+                this.compileExpression(node.base);
+                node.arguments.forEach((arg: any) => this.compileExpression(arg));
+                this.emit(Opcode.OP_CALL, 0, node.arguments.length);
+            }
         }
         else if (node.type === 'MemberExpression') {
             this.compileExpression(node.base);
@@ -120,13 +137,19 @@ export class VexileCompiler {
                     local dest = nextByte()
                     local kIdx = nextByte()
                     local key = K[kIdx]
-                    
                     local obj = table.remove(Stack)
-                    if obj then
-                        table.insert(Stack, obj[key])
-                    else
-                        table.insert(Stack, nil)
-                    end
+                    if obj then table.insert(Stack, obj[key]) else table.insert(Stack, nil) end
+
+                elseif OP == ${Opcode.OP_SELF} then
+                    local dest = nextByte()
+                    local kIdx = nextByte()
+                    local key = K[kIdx]
+                    
+                    local obj = Stack[#Stack]
+                    local func = obj[key]
+                    
+                    Stack[#Stack] = func
+                    table.insert(Stack, obj)
 
                 elseif OP == ${Opcode.OP_CALL} then
                     local dest = nextByte() 
