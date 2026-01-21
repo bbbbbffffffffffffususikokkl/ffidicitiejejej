@@ -24,9 +24,9 @@ function hideString(str: string, charFuncVar: string): string {
 }
 
 function getDeadCode(preset: string): string {
-  let intensity = 7;
-  if (preset === "Medium") intensity = 15; 
-  if (preset === "High") intensity = 30;   
+  let intensity = 50;
+  if (preset === "Medium") intensity = 100;
+  if (preset === "High") intensity = 200;
 
   let junk = "";
   
@@ -77,7 +77,7 @@ export function obfuscateCode(code: string, engine: EngineType, preset: string):
   }
   processedCode = processedCode.split('\n').map(line => line.trim()).filter(l => l.length > 0).join(' ');
 
-  if (!isLua) return `/* Vexile 2.0 Protected */ ${processedCode}`;
+  if (!isLua) return `/* This file is protected with Vexile 1.0.0 */ ${processedCode}`;
 
   const vReg = genVar(); 
   const IDX_STRING = 1;
