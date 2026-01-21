@@ -1,20 +1,72 @@
 type EngineType = "LuaU" | "JavaScript (MCBE)";
 
 function genVar(): string {
-  const hex = "0123456789ABCDEF";
-  let res = "_0x";
-  for (let i = 0; i < 3; i++) res += hex[Math.floor(Math.random() * hex.length)];
-  return res;
+  const patterns = [
+    () => {
+      const chars = "lI1O0\u200B\u200C\u200D";
+      let res = "";
+      const len = 2 + Math.floor(Math.random() * 4);
+      for (let i = 0; i < len; i++) res += chars[Math.floor(Math.random() * chars.length)];
+      return res;
+    },
+    () => {
+      const chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ";
+      let res = chars[Math.floor(Math.random() * chars.length)];
+      const len = 3 + Math.floor(Math.random() * 5);
+      for (let i = 0; i < len; i++) {
+        if (Math.random() > 0.5) res += chars[Math.floor(Math.random() * chars.length)];
+        else res += Math.floor(Math.random() * 10);
+      }
+      return res;
+    },
+    () => {
+      const hex = "0123456789abcdef";
+      let res = "__";
+      for (let i = 0; i < (4 + Math.floor(Math.random() * 3)); i++) 
+        res += hex[Math.floor(Math.random() * hex.length)];
+      return res;
+    }
+  ];
+  return patterns[Math.floor(Math.random() * patterns.length)]();
 }
 
 function obfNum(n: number): string {
-  const method = Math.floor(Math.random() * 3);
-  if (method === 0) return `0x${n.toString(16)}`; 
-  if (method === 1) { 
-      const p1 = Math.floor(Math.random() * n);
-      return `(${p1}+${n - p1})`; 
+  const method = Math.floor(Math.random() * 6);
+  
+  if (method === 0) {
+    return `0x${n.toString(16)}`;
+  } 
+  if (method === 1) {
+    const p1 = Math.floor(Math.random() * n);
+    return `(${p1}+${n - p1})`;
   }
-  return `(${n})`; 
+  if (method === 2) {
+    const mask = Math.floor(Math.random() * 255) + 1;
+    return `(bit32.bxor(${n ^ mask},${mask}))`;
+  }
+  if (method === 3) {
+    const factor = [2, 3, 4, 5][Math.floor(Math.random() * 4)];
+    return `(${n * factor}/${factor})`;
+  }
+  if (method === 4) {
+    const a = Math.floor(Math.random() * 100);
+    const b = Math.floor(Math.random() * 100);
+    return `((${a}+${b})*${Math.floor(n / (a + b || 1))}+${n % (a + b || 1)})`;
+  }
+  const shift = Math.floor(Math.random() * 3) + 1;
+  return `(bit32.rshift(${n << shift},${shift}))`;
+}
+
+function encryptString(str: string, key: number, xorKey: number): string {
+  let result = "";
+  for (let i = 0; i < str.length; i++) {
+    const charCode = str.charCodeAt(i);
+    let encrypted = charCode ^ xorKey;
+    encrypted = (encrypted + key + (i + 1)) % 256;
+    encrypted = ((encrypted << 3) | (encrypted >> 5)) & 0xFF;
+    result += "\\" + encrypted;
+  }
+  return result;
 }
 
 function hideString(str: string, charFuncVar: string): string {
@@ -24,54 +76,49 @@ function hideString(str: string, charFuncVar: string): string {
 }
 
 function getDeadCode(preset: string): string {
-  // We switched from "Loop Iterations" to "Code Blocks" to generate file size.
-  // 3000 blocks would be too massive (megabytes), so we use safe high numbers.
-  let blocksToGenerate = 20;
-  if (preset === "Medium") blocksToGenerate = 60;
-  if (preset === "High") blocksToGenerate = 150; // This will generate ~150 chunks of junk
+  let blocksToGenerate = 100;
+  if (preset === "Medium") blocksToGenerate = 200;
+  if (preset === "High") blocksToGenerate = 400;
 
   let junk = "";
   const vTab = genVar();
-  junk += `local ${vTab}={};`;
+  const vControl = genVar();
   
-  // Loop in Typescript to create a massive string of unique Lua code
+  junk += `local ${vTab}={};local ${vControl}=${obfNum(0)};`;
+  
   for (let i = 0; i < blocksToGenerate; i++) {
     const vIdx = genVar();
     const vVal = genVar();
-    const type = Math.floor(Math.random() * 3);
+    const vCheck = genVar();
+    const type = Math.floor(Math.random() * 5);
 
-    // Randomize the type of junk to look messier
     if (type === 0) {
-        // Chunk A: A small loop
-        junk += `for ${vIdx}=1,${obfNum(4)} do ${vTab}[${vIdx}]=${obfNum(i)}*${obfNum(2)} end; `;
+      junk += `local ${vCheck}=(${obfNum(i * 2)}%${obfNum(2)}==${obfNum(0)});`;
+      junk += `if ${vCheck} then for ${vIdx}=1,${obfNum(3)} do ${vTab}[${vIdx}]=${obfNum(i)}*${obfNum(2)};${vControl}=${vControl}+${obfNum(0)} end else ${vControl}=${vControl}+${obfNum(1)} end;`;
     } else if (type === 1) {
-        // Chunk B: Logic check
-        junk += `local ${vVal}=${obfNum(Math.floor(Math.random() * 500))}; `;
-        junk += `if ${vVal}>${obfNum(250)} then ${vTab}[${obfNum(i)}]=${vVal} else ${vTab}[${obfNum(i)}]=0 end; `;
+      const rand = Math.floor(Math.random() * 500);
+      junk += `local ${vVal}=${obfNum(rand)};`;
+      junk += `if(${vVal}>${obfNum(rand - 1)})then ${vTab}[${obfNum(i)}]=${vVal};${vControl}=bit32.bxor(${vControl},${obfNum(0)})else ${vTab}[${obfNum(i)}]=0;${vControl}=${vControl}|${obfNum(0)} end;`;
+    } else if (type === 2) {
+      junk += `${vTab}[${obfNum(i)}]=bit32.band((${obfNum(i)}+${obfNum(1)})*${obfNum(3)},${obfNum(255)});`;
+      junk += `${vControl}=bit32.bor(${vControl},bit32.band(${vTab}[${obfNum(i)}],${obfNum(0)}));`;
+    } else if (type === 3) {
+      junk += `if(#${vTab}<${obfNum(100)})then ${vTab}[#${vTab}+1]=${obfNum(i)} end;`;
+      junk += `${vControl}=(${vControl}+#${vTab})%${obfNum(1)};`;
     } else {
-        // Chunk C: Direct math
-        junk += `${vTab}[${obfNum(i)}]=(${obfNum(i)}+${obfNum(1)})*${obfNum(3)}; `;
+      const fakeStr = String.fromCharCode(65 + (i % 26));
+      junk += `local ${vVal}="${fakeStr}";`;
+      junk += `if(#${vVal}>${obfNum(0)})then ${vControl}=${vControl}+string.byte(${vVal})*${obfNum(0)} end;`;
     }
   }
   
   return junk;
 }
 
-function encryptString(str: string, key: number): string {
-  let result = "";
-  for (let i = 0; i < str.length; i++) {
-    const charCode = str.charCodeAt(i);
-    const encryptedByte = (charCode + key + (i + 1)) % 256;
-    result += "\\" + encryptedByte;
-  }
-  return result;
-}
 export function obfuscateCode(code: string, engine: EngineType, preset: string): string {
   const isLua = engine === "LuaU";
   const isTest = preset === "Test"; 
 
-  // ... [Existing string cleanup code] ...
-  
   let processedCode = code;
   if (isLua) {
     processedCode = processedCode
@@ -84,7 +131,7 @@ export function obfuscateCode(code: string, engine: EngineType, preset: string):
   }
   processedCode = processedCode.split('\n').map(line => line.trim()).filter(l => l.length > 0).join(' ');
 
-  if (!isLua) return `/* This file is protected with Vexile 1.0.0 */ ${processedCode}`;
+  if (!isLua) return `/* This file is protected with Vexile v1.0.0 (discord.gg/vexile) */ ${processedCode}`;
 
   const vReg = genVar(); 
   const IDX_STRING = 1;
@@ -102,11 +149,22 @@ export function obfuscateCode(code: string, engine: EngineType, preset: string):
   const IDX_MAIN = 13;
 
   let encryptKey = Math.floor(Math.random() * 50) + 1; 
-  if (preset === "Medium") encryptKey = Math.floor(Math.random() * 150) + 50; 
-  if (preset === "High")   encryptKey = Math.floor(Math.random() * 200) + 55; 
+  let xorKey = Math.floor(Math.random() * 255) + 1;
+  
+  if (preset === "Medium") {
+    encryptKey = Math.floor(Math.random() * 150) + 50;
+    xorKey = Math.floor(Math.random() * 255) + 100;
+  }
+  if (preset === "High") {
+    encryptKey = Math.floor(Math.random() * 200) + 55;
+    xorKey = Math.floor(Math.random() * 255) + 150;
+  }
 
   const kKey = obfNum(encryptKey);
+  const kXor = obfNum(xorKey);
   const k256 = obfNum(256);
+  const k3 = obfNum(3);
+  const k5 = obfNum(5);
   
   let constantsList: string[] = [];
   
@@ -115,7 +173,10 @@ export function obfuscateCode(code: string, engine: EngineType, preset: string):
       local r={}
       for i=1,#s do
         local b=${vReg}[${IDX_BYTE}](s,i)
-        ${vReg}[${IDX_INSERT}](r,${vReg}[${IDX_CHAR}]((b-i-${kKey})%${k256}))
+        b=bit32.bor(bit32.rshift(b,${k3}),bit32.lshift(bit32.band(b,7),${k5}))
+        b=(b-i-${kKey})%${k256}
+        b=bit32.bxor(b,${kXor})
+        ${vReg}[${IDX_INSERT}](r,${vReg}[${IDX_CHAR}](b))
       end
       return ${vReg}[${IDX_CONCAT}](r)
     end
@@ -126,7 +187,7 @@ export function obfuscateCode(code: string, engine: EngineType, preset: string):
         const raw = p1 || p2 || "";
         if (raw.length === 0) return match;
         
-        const encrypted = encryptString(raw, encryptKey);
+        const encrypted = encryptString(raw, encryptKey, xorKey);
         constantsList.push(encrypted);
         const idx = constantsList.length; 
         
@@ -134,7 +195,18 @@ export function obfuscateCode(code: string, engine: EngineType, preset: string):
     });
   }
 
-  const constantsTableStr = "{" + constantsList.map(s => `"${s}"`).join(',') + "}";
+  const chunkSize = 10;
+  let constantChunks: string[] = [];
+  for (let i = 0; i < constantsList.length; i += chunkSize) {
+    constantChunks.push("{" + constantsList.slice(i, i + chunkSize).map(s => `"${s}"`).join(',') + "}");
+  }
+  
+  const vTempChunks = genVar();
+  const vTempI = genVar();
+  const vTempJ = genVar();
+  const constantsSetup = constantChunks.length > 1 
+    ? `local ${vTempChunks}={${constantChunks.join(',')}};${vReg}[${IDX_CONSTANTS}]={};for ${vTempI}=1,#${vTempChunks} do for ${vTempJ}=1,#${vTempChunks}[${vTempI}]do ${vReg}[${IDX_INSERT}](${vReg}[${IDX_CONSTANTS}],${vTempChunks}[${vTempI}][${vTempJ}])end end`
+    : `${vReg}[${IDX_CONSTANTS}]=${constantChunks[0] || "{}"}`;
 
   const vVM = genVar();
   const vOp = genVar();
@@ -144,14 +216,30 @@ export function obfuscateCode(code: string, engine: EngineType, preset: string):
   const strWait = hideString("wait", `${vReg}[${IDX_CHAR}]`);
   const strCheckIndex = hideString("CHECKINDEX", `${vReg}[${IDX_CHAR}]`);
 
-  let crashLogic = `function() local function c() return c() end; return c() end`;
+  const vCheck1 = genVar();
+  const vCheck2 = genVar();
+  const vCheck3 = genVar();
+  
+  let crashLogic = `function()local ${vCheck1}=${obfNum(0)};while ${vCheck1}<${obfNum(10000)} do ${vCheck1}=${vCheck1}+${obfNum(1)};(function()return(function()end)()end)()end end`;
   if (isTest) crashLogic = `function() end`;
+
+  const antiTamperChecks = isTest ? "" : `
+    local ${vCheck2}=${obfNum(0)};
+    local ${vCheck3}=function()
+      if(getfenv and getfenv()[${strCheckIndex}])then ${vReg}[${IDX_CRASH}]()end;
+      if(${vReg}[${IDX_GETINFO}](${vReg}[${IDX_TASK}][${strWait}])[${strWhat}]~=${strC})then ${vReg}[${IDX_CRASH}]()end;
+      ${vCheck2}=${vCheck2}+${obfNum(1)};
+      if ${vCheck2}>${obfNum(5)} then return true end;
+      return false;
+    end;
+  `;
 
   let vmMetatable = `
     setmetatable(${vVM}, {
       __index = function(t, k)
         if k == ${obfNum(1)} then
-           if (getfenv and getfenv()[${strCheckIndex}]) then ${vReg}[${IDX_CRASH}]() end;
+           ${antiTamperChecks}
+           if not ${vCheck3}() then ${vReg}[${IDX_CRASH}]() end;
            return ${obfNum(2)};
         elseif k == ${obfNum(2)} then
            if (${vReg}[${IDX_GETINFO}](${vReg}[${IDX_TASK}][${strWait}])[${strWhat}] ~= ${strC}) then ${vReg}[${IDX_CRASH}]() end;
@@ -160,6 +248,7 @@ export function obfuscateCode(code: string, engine: EngineType, preset: string):
         return getfenv(0)[k];
       end,
       __newindex = function(t, k, v)
+        if ${vCheck3} and not ${vCheck3}() then ${vReg}[${IDX_CRASH}]() end;
         getfenv(0)[k] = v;
       end,
       __metatable = "Locked"
@@ -167,14 +256,13 @@ export function obfuscateCode(code: string, engine: EngineType, preset: string):
   `;
   if (isTest) vmMetatable = `setmetatable(${vVM}, { __index = function(t,k) return getfenv(0)[k] end, __newindex = function(t,k,v) getfenv(0)[k]=v end })`;
 
-  // These will now generate MASSIVE blocks of text due to the new loop
   const deadBlock1 = getDeadCode(preset);
   const deadBlock2 = getDeadCode(preset);
   const deadBlock3 = getDeadCode(preset);
   
   let parserBomb = "";
   if (preset === "High" || preset == "Medium") {
-     const bombDepth = 300; // Increased depth slightly
+     const bombDepth = 300;
      let bombStr = `0x${Math.floor(Math.random() * 10000).toString(16)}`;
 
      for (let i = 0; i < bombDepth; i++) {
@@ -189,7 +277,7 @@ export function obfuscateCode(code: string, engine: EngineType, preset: string):
 
   const headerStart = isLua ? "--[[" : "/*";
   const headerEnd = isLua ? "]]" : "*/";
-  const watermark = `${headerStart} This file is protected with Vexile v1.0.0 (discord.gg/vexile) ${headerEnd}`;
+  const watermark = `${headerStart} This file is protected using Vexile v1.0.0 (discord.gg/vexile) ${headerEnd}`;
 
   let rawScript = `
     (function()
@@ -208,7 +296,7 @@ export function obfuscateCode(code: string, engine: EngineType, preset: string):
       ${vReg}[${IDX_CRASH}] = ${crashLogic};
       ${vReg}[${IDX_DECRYPT}] = ${decryptLogic};
       
-      ${vReg}[${IDX_CONSTANTS}] = ${constantsTableStr};
+      ${constantsSetup};
 
       ${deadBlock1}
 
