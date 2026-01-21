@@ -110,9 +110,9 @@ export function obfuscateCode(code: string, engine: EngineType, preset: string):
   const strWait = hideString("wait", `${vReg}[${IDX_CHAR}]`);
   const strCheckIndex = hideString("CHECKINDEX", `${vReg}[${IDX_CHAR}]`);
   
-  // 5. CRASH LOGIC
-  let crashLogic = `function crash() crash() end`; 
+  let crashLogic = `function() local function c() return c() end; return c() end`; 
   if (isTest) crashLogic = `function() end`;
+
 
   // 6. ANTI-TAMPER METATABLE (Prometheus Style)
   // This wraps the environment. When the VM tries to call 'print' or 'game',
