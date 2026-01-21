@@ -1,18 +1,16 @@
-type EngineType = "LuaU" | "JavaScript (MCBE)";
-
 function genVar(): string {
   const patterns = [
     () => {
-      const chars = "lI1O0\u200B\u200C\u200D";
+      const chars = "lI1O0oO";
       let res = "";
-      const len = 2 + Math.floor(Math.random() * 4);
+      const len = 3 + Math.floor(Math.random() * 4);
       for (let i = 0; i < len; i++) res += chars[Math.floor(Math.random() * chars.length)];
       return res;
     },
     () => {
       const chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ";
       let res = chars[Math.floor(Math.random() * chars.length)];
-      const len = 3 + Math.floor(Math.random() * 5);
+      const len = 4 + Math.floor(Math.random() * 6);
       for (let i = 0; i < len; i++) {
         if (Math.random() > 0.5) res += chars[Math.floor(Math.random() * chars.length)];
         else res += Math.floor(Math.random() * 10);
@@ -20,11 +18,25 @@ function genVar(): string {
       return res;
     },
     () => {
-      const hex = "0123456789abcdef";
+      const hex = "0123456789abcdefABCDEF";
       let res = "__";
+      for (let i = 0; i < (5 + Math.floor(Math.random() * 4)); i++) 
+        res += hex[Math.floor(Math.random() * hex.length)];
+      return res;
+    },
+    () => {
+      const prefixes = ["l_", "I_", "O_", "ll_", "II_", "OO_"];
+      const hex = "0123456789abcdef";
+      let res = prefixes[Math.floor(Math.random() * prefixes.length)];
       for (let i = 0; i < (4 + Math.floor(Math.random() * 3)); i++) 
         res += hex[Math.floor(Math.random() * hex.length)];
       return res;
+    },
+    () => {
+      const words = ["math", "hash", "calc", "val", "temp", "data", "func", "exec", "proc"];
+      const word = words[Math.floor(Math.random() * words.length)];
+      const num = Math.floor(Math.random() * 9999);
+      return `${word}${num}`;
     }
   ];
   return patterns[Math.floor(Math.random() * patterns.length)]();
@@ -131,7 +143,7 @@ export function obfuscateCode(code: string, engine: EngineType, preset: string):
   }
   processedCode = processedCode.split('\n').map(line => line.trim()).filter(l => l.length > 0).join(' ');
 
-  if (!isLua) return `/* This file is protected with Vexile v1.0.0 (discord.gg/vexile) */ ${processedCode}`;
+  if (!isLua) return `/* This file is protected with Vexile 1.0.0 */ ${processedCode}`;
 
   const vReg = genVar(); 
   const IDX_STRING = 1;
@@ -277,7 +289,7 @@ export function obfuscateCode(code: string, engine: EngineType, preset: string):
 
   const headerStart = isLua ? "--[[" : "/*";
   const headerEnd = isLua ? "]]" : "*/";
-  const watermark = `${headerStart} This file is protected using Vexile v1.0.0 (discord.gg/vexile) ${headerEnd}`;
+  const watermark = `${headerStart} Luraph ${headerEnd}`;
 
   let rawScript = `
     (function()
