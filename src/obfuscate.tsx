@@ -25,26 +25,29 @@ function hideString(str: string, charFuncVar: string): string {
 
 function getDeadCode(preset: string): string {
   let intensity = 50;
-  if (preset === "Medium") intensity = 100;
-  if (preset === "High") intensity = 200;
+  if (preset === "Medium") intensity = 150;
+  if (preset === "High") intensity = 400;
 
   let junk = "";
   
   const vTab = genVar();
   const vIdx = genVar();
   const vVal = genVar();
+  const vInner = genVar();
   
   junk += `local ${vTab}={};`;
   
   junk += `for ${vIdx}=${obfNum(1)},${obfNum(intensity)} do `;
+  junk += `local ${vVal}=${obfNum(Math.floor(Math.random() * 500))};`;
   
-  junk += `local ${vVal}=${obfNum(Math.floor(Math.random() * 1000))};`;
-  
-  junk += `if ${vIdx}%${obfNum(2)}==${obfNum(0)} then `;
-  junk += `${vTab}[${vIdx}]=${vVal}*${obfNum(2)};`;
-  junk += `else `;
-  junk += `${vTab}[${vIdx}]=${vVal}+${obfNum(1)};`;
-  junk += `end;`;
+  junk += `for ${vInner}=1, ${obfNum(5)} do `;
+  junk += `${vTab}[${vIdx}*${vInner}]=${vVal}*${obfNum(2)};`;
+  junk += `${vTab}[${vVal}]=${vTab}[${vIdx}]+${obfNum(1)};`;
+  junk += `end; `;
+
+  junk += `if ${vIdx}%${obfNum(3)}==${obfNum(0)} then `;
+  junk += `${vTab}[${vIdx}]=${vVal}+${obfNum(4)};`;
+  junk += `end; `;
   
   junk += `end;`;
   
@@ -92,6 +95,7 @@ export function obfuscateCode(code: string, engine: EngineType, preset: string):
   const IDX_CONSTANTS = 10; 
   const IDX_DECRYPT = 11;
   const IDX_CRASH = 12;
+  const IDX_MAIN = 13;
 
   let encryptKey = Math.floor(Math.random() * 50) + 1; 
   if (preset === "Medium") encryptKey = Math.floor(Math.random() * 150) + 50; 
@@ -149,11 +153,15 @@ export function obfuscateCode(code: string, engine: EngineType, preset: string):
            if (${vReg}[${IDX_GETINFO}](${vReg}[${IDX_TASK}][${strWait}])[${strWhat}] ~= ${strC}) then ${vReg}[${IDX_CRASH}]() end;
            return ${obfNum(0)};
         end
-        return ${obfNum(0)};
-      end
+        return getfenv(0)[k];
+      end,
+      __newindex = function(t, k, v)
+        getfenv(0)[k] = v;
+      end,
+      __metatable = "Locked"
     })
   `;
-  if (isTest) vmMetatable = `setmetatable(${vVM}, { __index = function() return 0 end })`;
+  if (isTest) vmMetatable = `setmetatable(${vVM}, { __index = function(t,k) return getfenv(0)[k] end, __newindex = function(t,k,v) getfenv(0)[k]=v end })`;
 
   const deadBlock1 = getDeadCode(preset);
   const deadBlock2 = getDeadCode(preset);
@@ -161,9 +169,17 @@ export function obfuscateCode(code: string, engine: EngineType, preset: string):
   
   let parserBomb = "";
   if (preset === "High") {
-     const bombDepth = 200; 
-     const val = `0x${Math.floor(Math.random()*10000).toString(16)}`; 
-     parserBomb = `local ${genVar()} = ${"{".repeat(bombDepth)}${val}${"}".repeat(bombDepth)};`;
+     const bombDepth = 250; 
+     let bombStr = `0x${Math.floor(Math.random() * 10000).toString(16)}`;
+
+     for (let i = 0; i < bombDepth; i++) {
+        if (Math.random() > 0.5) {
+            bombStr = `(${bombStr}+${obfNum(Math.floor(Math.random() * 100))})`;
+        } else {
+            bombStr = `(${obfNum(Math.floor(Math.random() * 100))}+${bombStr})`;
+        }
+     }
+     parserBomb = `local ${genVar()}=${bombStr};`;
   }
 
   const headerStart = isLua ? "--[[" : "/*";
@@ -200,7 +216,12 @@ export function obfuscateCode(code: string, engine: EngineType, preset: string):
 
       ${deadBlock2}
 
-      ${processedCode};
+      ${vReg}[${IDX_MAIN}] = function()
+        ${processedCode}
+      end;
+
+      setfenv(${vReg}[${IDX_MAIN}], ${vVM});
+      ${vReg}[${IDX_MAIN}]();
       
       ${deadBlock3}
     end)()
