@@ -47,11 +47,13 @@ export class VexileCompiler {
 
         this.emit(Opcode.OP_EXIT);
 
+        // Serialize Bytecode
         let bytecodeStr = "";
         this.instructions.forEach(byte => {
             bytecodeStr += "\\" + (byte % 256).toString();
         });
 
+        // Generate Constant Table
         let constTableLua = "local K = {}\n";
         this.constants.forEach((c, i) => {
             const val = typeof c === 'string' ? `"${c}"` : c;
@@ -137,7 +139,7 @@ export class VexileCompiler {
             local IP = 1
             local Stack = {}
             local Env = getfenv()
-            local NULL = {}
+            local NULL = {} 
 
             local function nextByte()
                 local char = string.sub(BytecodeString, IP, IP)
@@ -195,7 +197,8 @@ export class VexileCompiler {
                     local obj = table.remove(Stack)
                     if obj == NULL then obj = nil end
                     
-                    local func = obj[key]
+                    local func = nil
+                    if obj then func = obj[key] end
                     if func == nil then func = NULL end
                     if obj == nil then obj = NULL end
 
