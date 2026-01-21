@@ -111,7 +111,7 @@ export function obfuscateCode(code: string, engine: EngineType, preset: string):
   const strCheckIndex = hideString("CHECKINDEX", `${vReg}[${IDX_CHAR}]`);
   
   // 5. CRASH LOGIC
-  let crashLogic = `function() while true do end end`; 
+  let crashLogic = `function crash() crash() end`; 
   if (isTest) crashLogic = `function() end`;
 
   // 6. ANTI-TAMPER METATABLE (Prometheus Style)
@@ -120,27 +120,22 @@ export function obfuscateCode(code: string, engine: EngineType, preset: string):
   let vmMetatable = `
     setmetatable(${vVM}, {
       __index = function(t, k)
-        -- [Anti-Tamper 1] Check if someone tried to hook/replace the environment
         if k == ${obfNum(1)} then
            if (getfenv and getfenv()[${strCheckIndex}]) then ${vReg}[${IDX_CRASH}]() end;
            return ${obfNum(2)};
         
-        -- [Anti-Tamper 2] Anti-Hook (Task Wait Check)
-        -- Checks if critical functions are C closures (native) and not Lua hooks
         elseif k == ${obfNum(2)} then
            if (${vReg}[${IDX_GETINFO}](${vReg}[${IDX_TASK}][${strWait}])[${strWhat}] ~= ${strC}) then ${vReg}[${IDX_CRASH}]() end;
            return ${obfNum(0)};
         end
 
-        -- [Passthrough] If safe, give the VM the real global it asked for
         return getfenv(0)[k];
       end,
       
       __newindex = function(t, k, v)
         getfenv(0)[k] = v;
       end,
-      
-      -- [Anti-Tamper 3] Lock the metatable so they can't inspect it
+
       __metatable = "Locked"
     })
   `;
@@ -169,7 +164,6 @@ export function obfuscateCode(code: string, engine: EngineType, preset: string):
     (function()
       ${parserBomb}
       
-      -- [Setup Wrapper Variables]
       local ${vReg} = {}
       ${vReg}[${IDX_STRING}] = string;
       ${vReg}[${IDX_CHAR}] = ${vReg}[${IDX_STRING}].char;
@@ -180,28 +174,21 @@ export function obfuscateCode(code: string, engine: EngineType, preset: string):
 
       ${deadBlock1}
 
-      -- [Setup Security Environment]
       local ${vVM} = {}
       ${vmMetatable}
       
-      -- [Trigger Security Check 1 Time]
       local ${vOp} = ${obfNum(1)};
       ${vOp} = ${vVM}[${vOp}]; 
       ${vOp} = ${vVM}[${vOp}]; 
 
-      -- [The Payload: Virtualized Code]
-      -- We wrap the VM script in a function so we can apply the environment to it
       ${vReg}[${IDX_MAIN}] = function()
          ${vmScript}
       end;
 
       ${deadBlock2}
 
-      -- [Apply Protection]
-      -- The VM will now run INSIDE our trap
       setfenv(${vReg}[${IDX_MAIN}], ${vVM});
       
-      -- [Execute]
       ${vReg}[${IDX_MAIN}]();
       
     end)()
