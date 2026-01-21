@@ -27,7 +27,7 @@ function hideString(str: string, charFuncVar: string): string {
 
 function cleanLuaU(code: string): string {
     return code
-        // [IMPORTANT] Auto-convert GetService to Index to prevent VM errors
+        // Auto-convert GetService to Index (Safe Fix)
         .replace(/:\s*GetService\s*\(\s*(["'])([^"']+)\1\s*\)/g, '["$2"]')
 
         // Remove Type Definitions

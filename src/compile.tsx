@@ -4,18 +4,18 @@ enum Opcode {
   OP_MOVE = 0,
   OP_LOADCONST = 1,
   OP_GETGLOBAL = 2,
-  OP_SETGLOBAL = 3, // [NEW] Saves variables
-  OP_GETTABLE = 4,  // [UPDATED] obj[key]
-  OP_SETTABLE = 5,  // [NEW] obj[key] = val
+  OP_SETGLOBAL = 3,
+  OP_GETTABLE = 4,
+  OP_SETTABLE = 5,
   OP_CALL = 6,
   OP_EXIT = 7,
   OP_SELF = 8,
-  OP_ADD = 9,       // [NEW] Math
+  OP_ADD = 9,
   OP_SUB = 10,
   OP_MUL = 11,
   OP_DIV = 12,
-  OP_CONCAT = 13,   // [NEW] "A".."B"
-  OP_OR = 14,       // [NEW] A or B
+  OP_CONCAT = 13,
+  OP_OR = 14,
   OP_AND = 15
 }
 
@@ -47,13 +47,11 @@ export class VexileCompiler {
 
         this.emit(Opcode.OP_EXIT);
 
-        // Serialize Bytecode (Decimal Escapes)
         let bytecodeStr = "";
         this.instructions.forEach(byte => {
             bytecodeStr += "\\" + (byte % 256).toString();
         });
 
-        // Generate Constant Table
         let constTableLua = "local K = {}\n";
         this.constants.forEach((c, i) => {
             const val = typeof c === 'string' ? `"${c}"` : c;
@@ -68,21 +66,13 @@ export class VexileCompiler {
             this.compileExpression(node.expression); 
         } 
         else if (node.type === 'LocalStatement' || node.type === 'AssignmentStatement') {
-            // 1. Compile all values first (RHS)
             node.init.forEach((expr: any) => this.compileExpression(expr));
             
-            // 2. Assign to variables (LHS) in reverse order
-            // Note: We treat all locals as Globals in this VM for simplicity
             for (let i = node.variables.length - 1; i >= 0; i--) {
                 const variable = node.variables[i];
                 if (variable.type === 'Identifier') {
                     const idx = this.addConstant(variable.name);
                     this.emit(Opcode.OP_SETGLOBAL, 0, idx + 1);
-                } else if (variable.type === 'MemberExpression') {
-                    // Handle x.y = z (Assignment only)
-                    // This is complex because we need base/key on stack BEFORE value.
-                    // For this simple VM, complex table assignment might be limited.
-                    // But standard `x = 1` works fine.
                 }
             }
         }
@@ -102,27 +92,24 @@ export class VexileCompiler {
             else if (node.operator === 'and') this.emit(Opcode.OP_AND);
         }
         else if (node.type === 'CallExpression') {
-            if (node.identifier) { // game:GetService
+            if (node.identifier) { 
                 this.compileExpression(node.base); 
                 const idx = this.addConstant(node.identifier.name);
                 this.emit(Opcode.OP_SELF, 0, idx + 1);
                 node.arguments.forEach((arg: any) => this.compileExpression(arg));
                 this.emit(Opcode.OP_CALL, 0, node.arguments.length + 1);
-            } else { // print("Hi")
+            } else { 
                 this.compileExpression(node.base);
                 node.arguments.forEach((arg: any) => this.compileExpression(arg));
                 this.emit(Opcode.OP_CALL, 0, node.arguments.length);
             }
         }
         else if (node.type === 'MemberExpression') {
-            // obj.key or obj["key"]
             this.compileExpression(node.base);
             if (node.indexer === '.') {
-                // Dot notation: identifier is a name
                 const idx = this.addConstant(node.identifier.name);
-                this.emit(Opcode.OP_LOADCONST, 1, idx + 1); // Push key string
+                this.emit(Opcode.OP_LOADCONST, 1, idx + 1); 
             } else {
-                // Bracket notation: identifier is an expression (e.g. StringLiteral)
                 this.compileExpression(node.identifier);
             }
             this.emit(Opcode.OP_GETTABLE);
@@ -140,10 +127,6 @@ export class VexileCompiler {
             const idx = this.addConstant(node.value);
             this.emit(Opcode.OP_LOADCONST, 1, idx + 1);
         }
-        else if (node.type === 'BooleanLiteral') {
-             // Treat bools as raw values (simplified)
-             // In a real VM you'd have OP_BOOL
-        }
     }
 
     private generateVM(bytecode: string, constTable: string): string {
@@ -154,7 +137,8 @@ export class VexileCompiler {
             local IP = 1
             local Stack = {}
             local Env = getfenv()
-            
+            local NULL = {}
+
             local function nextByte()
                 local char = string.sub(BytecodeString, IP, IP)
                 IP = IP + 1
@@ -173,26 +157,48 @@ export class VexileCompiler {
                     local dest = nextByte()
                     local kIdx = nextByte()
                     local key = K[kIdx]
-                    table.insert(Stack, Env[key])
+                    local val = Env[key]
+                    if val == nil then val = NULL end
+                    table.insert(Stack, val)
 
                 elseif OP == ${Opcode.OP_SETGLOBAL} then
                     local dest = nextByte()
                     local kIdx = nextByte()
                     local key = K[kIdx]
                     local val = table.remove(Stack)
+                    if val == NULL then val = nil end
                     Env[key] = val
 
                 elseif OP == ${Opcode.OP_GETTABLE} then
                     local key = table.remove(Stack)
                     local obj = table.remove(Stack)
-                    if obj then table.insert(Stack, obj[key]) else table.insert(Stack, nil) end
+                    if key == NULL then key = nil end
+                    if obj == NULL then obj = nil end
+                    
+                    local val = nil
+                    if obj then val = obj[key] end
+                    if val == nil then val = NULL end
+                    table.insert(Stack, val)
+
+                elseif OP == ${Opcode.OP_SETTABLE} then
+                    local val = table.remove(Stack)
+                    local key = table.remove(Stack)
+                    local obj = table.remove(Stack)
+                    if val == NULL then val = nil end
+                    if key == NULL then key = nil end
+                    if obj and obj ~= NULL then obj[key] = val end
 
                 elseif OP == ${Opcode.OP_SELF} then
                     local dest = nextByte()
                     local kIdx = nextByte()
                     local key = K[kIdx]
                     local obj = table.remove(Stack)
+                    if obj == NULL then obj = nil end
+                    
                     local func = obj[key]
+                    if func == nil then func = NULL end
+                    if obj == nil then obj = NULL end
+
                     table.insert(Stack, func)
                     table.insert(Stack, obj)
 
@@ -200,11 +206,21 @@ export class VexileCompiler {
                     local dest = nextByte() 
                     local argCount = nextByte()
                     local args = {}
-                    for i = 1, argCount do table.insert(args, 1, table.remove(Stack)) end
+                    for i = 1, argCount do 
+                        local val = table.remove(Stack)
+                        if val == NULL then val = nil end
+                        table.insert(args, 1, val) 
+                    end
+                    
                     local func = table.remove(Stack)
+                    if func == NULL then func = nil end
+
                     if func then
-                        local res = {func(unpack(args))}
-                        for _, v in ipairs(res) do table.insert(Stack, v) end
+                        local res = func(unpack(args))
+                        if res == nil then res = NULL end
+                        table.insert(Stack, res)
+                    else
+                        table.insert(Stack, NULL)
                     end
                 
                 elseif OP == ${Opcode.OP_ADD} then
