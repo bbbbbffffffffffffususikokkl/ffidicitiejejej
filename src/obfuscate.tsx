@@ -61,9 +61,9 @@ export function obfuscateCode(code: string, engine: EngineType, preset: string):
   // 1. CLEANUP
   let processedCode = code;
   if (isLua) {
-    processedCode = processedCode
-      .replace(/--\[\[(?! This file is protected with Vexile)[\s\S]*?\]\]/g, "")
-      .replace(/--(?![\[])(?!.*Vexile).*$/gm, ""); 
+    //processedCode = processedCode
+      //.replace(/--\[\[(?! This file is protected with Vexile)[\s\S]*?\]\]/g, "")
+      //.replace(/--(?![\[])(?!.*Vexile).*$/gm, ""); 
   } else {
     processedCode = processedCode
       .replace(/\/\*(?! This file is protected with Vexile)[\s\S]*?\*\//g, "") 
@@ -194,5 +194,5 @@ export function obfuscateCode(code: string, engine: EngineType, preset: string):
   `;
 
   let minifiedScript = rawScript.replace(/\n/g, ' ').replace(/\s+/g, ' ').trim();
-  return `${watermark}\n${minifiedScript}`;
+  return `${watermark}\n${rawScript}`;
 }
