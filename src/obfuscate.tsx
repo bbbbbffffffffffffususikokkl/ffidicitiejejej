@@ -78,10 +78,11 @@ export function obfuscateCode(code: string, engine: EngineType, preset: string):
       try {
           const compiler = new VexileCompiler();
           vmScript = compiler.compile(processedCode);
-      } catch (e) {
-          console.error("Compilation failed, using raw fallback", e);
-          vmScript = processedCode;
+            } catch (e: any) {
+            const err = e.message ? e.message.replace(/"/g, "'") : "Unknown Error";
+            vmScript = `error("Vexile Compiler Failed: ${err}")`; 
       }
+
   } else {
       return `/* Vexile Protected */ ${processedCode}`;
   }
