@@ -1,3 +1,5 @@
+type EngineType = "LuaU" | "JavaScript (MCBE)";
+
 function genVar(): string {
   const patterns = [
     () => {
@@ -81,12 +83,6 @@ function encryptString(str: string, key: number, xorKey: number): string {
   return result;
 }
 
-function hideString(str: string, charFuncVar: string): string {
-  let args = [];
-  for(let i=0; i<str.length; i++) args.push(obfNum(str.charCodeAt(i)));
-  return `${charFuncVar}(${args.join(',')})`;
-}
-
 function getDeadCode(preset: string): string {
   let blocksToGenerate = 100;
   if (preset === "Medium") blocksToGenerate = 200;
@@ -110,7 +106,7 @@ function getDeadCode(preset: string): string {
     } else if (type === 1) {
       const rand = Math.floor(Math.random() * 500);
       junk += `local ${vVal}=${obfNum(rand)};`;
-      junk += `if(${vVal}>${obfNum(rand - 1)})then ${vTab}[${obfNum(i)}]=${vVal};${vControl}=bit32.bxor(${vControl},${obfNum(0)})else ${vTab}[${obfNum(i)}]=0;${vControl}=${vControl}|${obfNum(0)} end;`;
+      junk += `if(${vVal}>${obfNum(rand - 1)})then ${vTab}[${obfNum(i)}]=${vVal};${vControl}=bit32.bxor(${vControl},${obfNum(0)})else ${vTab}[${obfNum(i)}]=0;${vControl}=bit32.bxor(${vControl},${obfNum(0)})end;`;
     } else if (type === 2) {
       junk += `${vTab}[${obfNum(i)}]=bit32.band((${obfNum(i)}+${obfNum(1)})*${obfNum(3)},${obfNum(255)});`;
       junk += `${vControl}=bit32.bor(${vControl},bit32.band(${vTab}[${obfNum(i)}],${obfNum(0)}));`;
@@ -125,6 +121,12 @@ function getDeadCode(preset: string): string {
   }
   
   return junk;
+}
+
+function hideString(str: string, charFuncVar: string): string {
+  let args = [];
+  for(let i=0; i<str.length; i++) args.push(obfNum(str.charCodeAt(i)));
+  return `${charFuncVar}(${args.join(',')})`;
 }
 
 export function obfuscateCode(code: string, engine: EngineType, preset: string): string {
