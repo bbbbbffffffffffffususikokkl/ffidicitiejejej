@@ -23,34 +23,29 @@ function hideString(str: string, charFuncVar: string): string {
   return `${charFuncVar}(${args.join(',')})`;
 }
 
-// --- [IMPROVED] Heavy Dead Code Generator ---
 function getDeadCode(preset: string): string {
-  // Intensity = How many junk lines/variables to create
-  let intensity = 10; 
-  if (preset === "Medium") intensity = 20; 
-  if (preset === "High") intensity = 30; // Much higher for file size
+  let intensity = 7;
+  if (preset === "Medium") intensity = 15; 
+  if (preset === "High") intensity = 30;   
 
   let junk = "";
   
-  // 1. Fake Memory Table (Massive String Bloat)
-  // This adds raw KB to the file size
-  const vJunkTable = genVar();
-  let tableItems = [];
-  const tableSize = preset === "High" ? 100 : 20; // 100 random strings
-  for(let i=0; i<tableSize; i++) {
-     const rndStr = Math.random().toString(36).substring(2, 15);
-     tableItems.push(`"${rndStr}"`);
-  }
-  junk += `local ${vJunkTable}={${tableItems.join(',')}};`;
-
-  // 2. Fake Logic Loop (Mimics real Vexile code)
+  const vTab = genVar();
   const vIdx = genVar();
-  const vTemp = genVar();
+  const vVal = genVar();
   
-  // Generates lines like: _0xA = _0xB[0x1] * (5+5)
+  junk += `local ${vTab}={};`;
+  
   junk += `for ${vIdx}=${obfNum(1)},${obfNum(intensity)} do `;
-  junk += `local ${vTemp}=${vJunkTable}[${vIdx}%${obfNum(tableSize)}];`;
-  junk += `if ${vTemp} then ${vJunkTable}[${vIdx}]=${obfNum(Math.floor(Math.random()*999))}; end;`;
+  
+  junk += `local ${vVal}=${obfNum(Math.floor(Math.random() * 1000))};`;
+  
+  junk += `if ${vIdx}%${obfNum(2)}==${obfNum(0)} then `;
+  junk += `${vTab}[${vIdx}]=${vVal}*${obfNum(2)};`;
+  junk += `else `;
+  junk += `${vTab}[${vIdx}]=${vVal}+${obfNum(1)};`;
+  junk += `end;`;
+  
   junk += `end;`;
   
   return junk;
@@ -82,7 +77,7 @@ export function obfuscateCode(code: string, engine: EngineType, preset: string):
   }
   processedCode = processedCode.split('\n').map(line => line.trim()).filter(l => l.length > 0).join(' ');
 
-  if (!isLua) return `/* This file is protected with Vexile 1.0.0 */ ${processedCode}`;
+  if (!isLua) return `/* Vexile 2.0 Protected */ ${processedCode}`;
 
   const vReg = genVar(); 
   const IDX_STRING = 1;
@@ -165,7 +160,7 @@ export function obfuscateCode(code: string, engine: EngineType, preset: string):
   const deadBlock3 = getDeadCode(preset);
   
   let parserBomb = "";
-  if (preset === "High" || preset === "Medium") {
+  if (preset === "High") {
      const bombDepth = 200; 
      const val = `0x${Math.floor(Math.random()*10000).toString(16)}`; 
      parserBomb = `local ${genVar()} = ${"{".repeat(bombDepth)}${val}${"}".repeat(bombDepth)};`;
