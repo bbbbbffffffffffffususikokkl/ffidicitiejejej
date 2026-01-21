@@ -4,12 +4,12 @@ import { obfuscateCode } from './obfuscate';
 
 // Preset Data Configuration
 const PRESETS = {
-  //Test: {
-    //icon: <Shield className="w-5 h-5 text-emerald-400" />,
-    //description: "Testing obfuscations without anti-tampers.",
-    //stats: { time: "Very Fast (1ms~)", size: "200%", security: "Unknown" },
-    //color: "text-emerald-400"
-  //},
+  Test: {
+    icon: <Shield className="w-5 h-5 text-emerald-400" />,
+    description: "Testing obfuscations without anti-tampers.",
+    stats: { time: "Very Fast (1ms~)", size: "200%", security: "Unknown" },
+    color: "text-emerald-400"
+  },
   High: {
     icon: <Shield className="w-5 h-5 text-emerald-400" />,
     description: "Aggressive obfuscation for maximum security. Best for sensitive scripts.",
@@ -110,7 +110,7 @@ export default function App() {
                 onChange={(e) => setPreset(e.target.value as PresetType)}
                 className="w-full bg-neutral-900 border border-neutral-800 text-white rounded-lg p-3 outline-none focus:ring-2 focus:ring-indigo-500/50 appearance-none cursor-pointer hover:border-neutral-700 transition-colors"
               >
-                //<option value="Test">🔥 Test</option>
+                <option value="Test">🔥 Test</option>
                 <option value="High">🛡️ High</option>
                 <option value="Medium">🗡️ Medium</option>
                 <option value="Fast">⚡️ Fast</option>
