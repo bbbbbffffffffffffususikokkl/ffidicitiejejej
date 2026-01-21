@@ -125,7 +125,6 @@ export class VexileCompiler {
                 elseif OP == ${Opcode.OP_GETGLOBAL} then
                     local dest = nextByte()
                     local kIdx = nextByte()
-                    -- Safe lookup
                     local val = getfenv()[ K[kIdx] ]
                     table.insert(Stack, val)
 
@@ -134,7 +133,6 @@ export class VexileCompiler {
                     local kIdx = nextByte()
                     local key = K[kIdx]
                     
-                    -- Pop table from stack
                     local obj = table.remove(Stack)
                     if obj then
                         table.insert(Stack, obj[key])
@@ -153,11 +151,9 @@ export class VexileCompiler {
                     
                     local func = table.remove(Stack)
                     
-                    -- Handle ":" method calls vs "." calls
                     if typeof(func) == "function" then
                         func(unpack(args))
                     else
-                         -- Fallback (simplified)
                     end
                 
                 elseif OP == ${Opcode.OP_EXIT} then
