@@ -65,17 +65,20 @@ export class VexileCompiler {
         if (node.type === 'CallExpression') {
             if (node.identifier) {
                 // Method call: game:GetService("Players")
+                // 1. Push Object (game)
                 this.compileExpression(node.base); 
                 
+                // 2. Emit OP_SELF (Transforms [game] -> [GetService, game])
                 const idx = this.addConstant(node.identifier.name);
                 this.emit(Opcode.OP_SELF, 0, idx + 1);
 
+                // 3. Push Arguments
                 node.arguments.forEach((arg: any) => this.compileExpression(arg));
                 
-                // Call with argCount + 1 (for self)
+                // 4. Call (Arguments + 1 for self)
                 this.emit(Opcode.OP_CALL, 0, node.arguments.length + 1);
             } else {
-                // Regular call
+                // Regular call: print("Hi")
                 this.compileExpression(node.base);
                 node.arguments.forEach((arg: any) => this.compileExpression(arg));
                 this.emit(Opcode.OP_CALL, 0, node.arguments.length);
@@ -140,11 +143,11 @@ export class VexileCompiler {
                     local dest = nextByte()
                     local kIdx = nextByte()
                     local key = K[kIdx]
-                    
-                    local obj = Stack[#Stack]
+
+                    local obj = table.remove(Stack)
                     local func = obj[key]
                     
-                    Stack[#Stack] = func
+                    table.insert(Stack, func)
                     table.insert(Stack, obj)
 
                 elseif OP == ${Opcode.OP_CALL} then
