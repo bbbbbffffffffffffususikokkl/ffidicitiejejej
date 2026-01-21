@@ -88,9 +88,9 @@ function encryptString(str: string, key: number, xorKey: number): string {
 }
 
 function getDeadCode(preset: string): string {
-  let blocksToGenerate = 100;
-  if (preset === "Medium") blocksToGenerate = 200;
-  if (preset === "High") blocksToGenerate = 400;
+  let blocksToGenerate = 40;
+  if (preset === "Medium") blocksToGenerate = 60;
+  if (preset === "High") blocksToGenerate = 80;
 
   let junk = "";
   const vTab = genVar();
@@ -99,28 +99,20 @@ function getDeadCode(preset: string): string {
   junk += `local ${vTab}={};local ${vControl}=${obfNum(0)};`;
   
   for (let i = 0; i < blocksToGenerate; i++) {
-    const vIdx = genVar();
-    const vVal = genVar();
-    const vCheck = genVar();
     const type = Math.floor(Math.random() * 5);
 
     if (type === 0) {
-      junk += `local ${vCheck}=(${obfNum(i * 2)}%${obfNum(2)}==${obfNum(0)});`;
-      junk += `if ${vCheck} then for ${vIdx}=1,${obfNum(3)} do ${vTab}[${vIdx}]=${obfNum(i)}*${obfNum(2)};${vControl}=${vControl}+${obfNum(0)} end else ${vControl}=${vControl}+${obfNum(1)} end;`;
+      junk += `do local v=(${obfNum(i * 2)}%${obfNum(2)}==${obfNum(0)});if v then for i=1,${obfNum(3)} do ${vTab}[i]=${obfNum(i)}*${obfNum(2)};${vControl}=${vControl}+${obfNum(0)} end else ${vControl}=${vControl}+${obfNum(1)} end end;`;
     } else if (type === 1) {
       const rand = Math.floor(Math.random() * 500);
-      junk += `local ${vVal}=${obfNum(rand)};`;
-      junk += `if(${vVal}>${obfNum(rand - 1)})then ${vTab}[${obfNum(i)}]=${vVal};${vControl}=bit32.bxor(${vControl},${obfNum(0)})else ${vTab}[${obfNum(i)}]=0;${vControl}=bit32.bxor(${vControl},${obfNum(0)})end;`;
+      junk += `do local v=${obfNum(rand)};if(v>${obfNum(rand - 1)})then ${vTab}[${obfNum(i)}]=v;${vControl}=bit32.bxor(${vControl},${obfNum(0)})else ${vTab}[${obfNum(i)}]=0;${vControl}=bit32.bxor(${vControl},${obfNum(0)})end end;`;
     } else if (type === 2) {
-      junk += `${vTab}[${obfNum(i)}]=bit32.band((${obfNum(i)}+${obfNum(1)})*${obfNum(3)},${obfNum(255)});`;
-      junk += `${vControl}=bit32.bor(${vControl},bit32.band(${vTab}[${obfNum(i)}],${obfNum(0)}));`;
+      junk += `do ${vTab}[${obfNum(i)}]=bit32.band((${obfNum(i)}+${obfNum(1)})*${obfNum(3)},${obfNum(255)});${vControl}=bit32.bor(${vControl},bit32.band(${vTab}[${obfNum(i)}],${obfNum(0)}))end;`;
     } else if (type === 3) {
-      junk += `if(#${vTab}<${obfNum(100)})then ${vTab}[#${vTab}+1]=${obfNum(i)} end;`;
-      junk += `${vControl}=(${vControl}+#${vTab})%${obfNum(1)};`;
+      junk += `do if(#${vTab}<${obfNum(100)})then ${vTab}[#${vTab}+1]=${obfNum(i)} end;${vControl}=(${vControl}+#${vTab})%${obfNum(1)}end;`;
     } else {
       const fakeStr = String.fromCharCode(65 + (i % 26));
-      junk += `local ${vVal}="${fakeStr}";`;
-      junk += `if(#${vVal}>${obfNum(0)})then ${vControl}=${vControl}+string.byte(${vVal})*${obfNum(0)} end;`;
+      junk += `do local v="${fakeStr}";if(#v>${obfNum(0)})then ${vControl}=${vControl}+string.byte(v)*${obfNum(0)} end end;`;
     }
   }
   
@@ -220,10 +212,8 @@ export function obfuscateCode(code: string, engine: EngineType, preset: string):
   }
   
   const vTempChunks = genVar();
-  const vTempI = genVar();
-  const vTempJ = genVar();
   const constantsSetup = constantChunks.length > 1 
-    ? `local ${vTempChunks}={${constantChunks.join(',')}};${vReg}[${IDX_CONSTANTS}]={};for ${vTempI}=1,#${vTempChunks} do for ${vTempJ}=1,#${vTempChunks}[${vTempI}]do ${vReg}[${IDX_INSERT}](${vReg}[${IDX_CONSTANTS}],${vTempChunks}[${vTempI}][${vTempJ}])end end`
+    ? `do local ${vTempChunks}={${constantChunks.join(',')}};${vReg}[${IDX_CONSTANTS}]={};for i=1,#${vTempChunks} do for j=1,#${vTempChunks}[i]do ${vReg}[${IDX_INSERT}](${vReg}[${IDX_CONSTANTS}],${vTempChunks}[i][j])end end end`
     : `${vReg}[${IDX_CONSTANTS}]=${constantChunks[0] || "{}"}`;
 
   const vVM = genVar();
@@ -242,14 +232,14 @@ export function obfuscateCode(code: string, engine: EngineType, preset: string):
   if (isTest) crashLogic = `function() end`;
 
   const antiTamperChecks = isTest ? "" : `
-    local ${vCheck2}=${obfNum(0)};
-    local ${vCheck3}=function()
+    do local ${vCheck2}=${obfNum(0)};
+    ${vCheck3}=function()
       if(getfenv and getfenv()[${strCheckIndex}])then ${vReg}[${IDX_CRASH}]()end;
       if(${vReg}[${IDX_GETINFO}](${vReg}[${IDX_TASK}][${strWait}])[${strWhat}]~=${strC})then ${vReg}[${IDX_CRASH}]()end;
       ${vCheck2}=${vCheck2}+${obfNum(1)};
       if ${vCheck2}>${obfNum(5)} then return true end;
       return false;
-    end;
+    end end;
   `;
 
   let vmMetatable = `
@@ -280,7 +270,7 @@ export function obfuscateCode(code: string, engine: EngineType, preset: string):
   
   let parserBomb = "";
   if (preset === "High" || preset == "Medium") {
-     const bombDepth = 300;
+     const bombDepth = 200;
      let bombStr = `0x${Math.floor(Math.random() * 10000).toString(16)}`;
 
      for (let i = 0; i < bombDepth; i++) {
@@ -290,7 +280,7 @@ export function obfuscateCode(code: string, engine: EngineType, preset: string):
             bombStr = `(${obfNum(Math.floor(Math.random() * 100))}+${bombStr})`;
         }
      }
-     parserBomb = `local ${genVar()}=${bombStr};`;
+     parserBomb = `do local p=${bombStr}end;`;
   }
 
   const headerStart = isLua ? "--[[" : "/*";
@@ -301,7 +291,7 @@ export function obfuscateCode(code: string, engine: EngineType, preset: string):
     (function()
       ${parserBomb}
       
-      local ${vReg} = {}
+      do local ${vReg} = {}
       ${vReg}[${IDX_STRING}] = string;
       ${vReg}[${IDX_CHAR}] = ${vReg}[${IDX_STRING}].char;
       ${vReg}[${IDX_BYTE}] = ${vReg}[${IDX_STRING}].byte;
@@ -318,12 +308,13 @@ export function obfuscateCode(code: string, engine: EngineType, preset: string):
 
       ${deadBlock1}
 
-      local ${vVM} = {}
+      do local ${vVM} = {}
+      local ${vCheck3};
       ${vmMetatable}
       
-      local ${vOp} = ${obfNum(1)};
+      do local ${vOp} = ${obfNum(1)};
       ${vOp} = ${vVM}[${vOp}]; 
-      ${vOp} = ${vVM}[${vOp}]; 
+      ${vOp} = ${vVM}[${vOp}]end;
 
       ${deadBlock2}
 
@@ -335,6 +326,7 @@ export function obfuscateCode(code: string, engine: EngineType, preset: string):
       ${vReg}[${IDX_MAIN}]();
       
       ${deadBlock3}
+      end end
     end)()
   `;
 
