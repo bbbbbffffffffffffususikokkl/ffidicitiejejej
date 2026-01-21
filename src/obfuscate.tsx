@@ -3,10 +3,13 @@ type EngineType = "LuaU" | "JavaScript (MCBE)";
 function genVar(): string {
   const patterns = [
     () => {
-      const chars = "lI1O0oO";
-      let res = "";
-      const len = 3 + Math.floor(Math.random() * 4);
-      for (let i = 0; i < len; i++) res += chars[Math.floor(Math.random() * chars.length)];
+      const chars = "abcdefghijklmnopqrstuvwxyz";
+      let res = chars[Math.floor(Math.random() * chars.length)];
+      const len = 3 + Math.floor(Math.random() * 5);
+      for (let i = 0; i < len; i++) {
+        if (Math.random() > 0.6) res += chars[Math.floor(Math.random() * chars.length)];
+        else res += Math.floor(Math.random() * 10);
+      }
       return res;
     },
     () => {
@@ -20,14 +23,14 @@ function genVar(): string {
       return res;
     },
     () => {
-      const hex = "0123456789abcdefABCDEF";
-      let res = "__";
+      const hex = "0123456789abcdef";
+      let res = "_x";
       for (let i = 0; i < (5 + Math.floor(Math.random() * 4)); i++) 
         res += hex[Math.floor(Math.random() * hex.length)];
       return res;
     },
     () => {
-      const prefixes = ["l_", "I_", "O_", "ll_", "II_", "OO_"];
+      const prefixes = ["l_", "I_", "O_", "var_", "tmp_", "fn_"];
       const hex = "0123456789abcdef";
       let res = prefixes[Math.floor(Math.random() * prefixes.length)];
       for (let i = 0; i < (4 + Math.floor(Math.random() * 3)); i++) 
@@ -51,7 +54,7 @@ function obfNum(n: number): string {
     return `0x${n.toString(16)}`;
   } 
   if (method === 1) {
-    const p1 = Math.floor(Math.random() * n);
+    const p1 = Math.floor(Math.random() * Math.max(1, n));
     return `(${p1}+${n - p1})`;
   }
   if (method === 2) {
@@ -63,9 +66,10 @@ function obfNum(n: number): string {
     return `(${n * factor}/${factor})`;
   }
   if (method === 4) {
-    const a = Math.floor(Math.random() * 100);
-    const b = Math.floor(Math.random() * 100);
-    return `((${a}+${b})*${Math.floor(n / (a + b || 1))}+${n % (a + b || 1)})`;
+    const a = Math.floor(Math.random() * 50) + 1;
+    const b = Math.floor(Math.random() * 50) + 1;
+    const sum = a + b;
+    return `((${a}+${b})*${Math.floor(n / sum)}+${n % sum})`;
   }
   const shift = Math.floor(Math.random() * 3) + 1;
   return `(bit32.rshift(${n << shift},${shift}))`;
