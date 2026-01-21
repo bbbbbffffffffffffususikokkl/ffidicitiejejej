@@ -27,23 +27,19 @@ function hideString(str: string, charFuncVar: string): string {
   return `${charFuncVar}(${args.join(',')})`;
 }
 
-// [NEW] LuaU Syntax Cleaner
-// Converts "x += 1" -> "x = x + 1" so the compiler doesn't crash
+// [FIXED] Removed the comment insertion in cleanLuaU
 function cleanLuaU(code: string): string {
     return code
-        // Fix +=, -=, *=, /=
-        .replace(/([a-zA-Z0-9_]+)\s*\+=\s*(.+)/g, "$1 = $1 + ($2)")
-        .replace(/([a-zA-Z0-9_]+)\s*\-=\s*(.+)/g, "$1 = $1 - ($2)")
-        .replace(/([a-zA-Z0-9_]+)\s*\*\=\s*(.+)/g, "$1 = $1 * ($2)")
-        .replace(/([a-zA-Z0-9_]+)\s*\/\=\s*(.+)/g, "$1 = $1 / ($2)")
-        // Fix 'continue' (poor man's fix, strictly usually requires AST but this helps basic loops)
-        // Note: Real 'continue' support requires a full transpiler, but this regex catches simple cases.
-        // If your script relies heavily on 'continue', consider replacing it manually with 'if' blocks.
-        .replace(/\bcontinue\b/g, "--[[continue skipped]]");
+        .replace(/([a-zA-Z0-9_\.]+)\s*\+=\s*(.+)/g, "$1 = $1 + ($2)")
+        .replace(/([a-zA-Z0-9_\.]+)\s*\-=\s*(.+)/g, "$1 = $1 - ($2)")
+        .replace(/([a-zA-Z0-9_\.]+)\s*\*\=\s*(.+)/g, "$1 = $1 * ($2)")
+        .replace(/([a-zA-Z0-9_\.]+)\s*\/\=\s*(.+)/g, "$1 = $1 / ($2)")
+        // Replaced 'continue' with an empty space instead of a comment
+        .replace(/\bcontinue\b/g, " ");
 }
 
 function getDeadCode(preset: string): string {
-  let blocksToGenerate = 10; // Reduced to prevent lag on big scripts
+  let blocksToGenerate = 10;
   if (preset === "Medium") blocksToGenerate = 40;
   if (preset === "High") blocksToGenerate = 100; 
 
@@ -74,15 +70,14 @@ export function obfuscateCode(code: string, engine: EngineType, preset: string):
   const isLua = engine === "LuaU";
   const isTest = preset === "Test"; 
 
-  // 1. PRE-PROCESS (Clean LuaU syntax)
+  // 1. PRE-PROCESS
   let processedCode = code;
   if (isLua) {
-    // Remove comments
+    // Remove existing comments from user code
     processedCode = processedCode
       .replace(/--\[\[(?! This file is protected with Vexile)[\s\S]*?\]\]/g, "")
       .replace(/--(?![\[])(?!.*Vexile).*$/gm, ""); 
     
-    // Fix LuaU syntax that breaks the compiler
     processedCode = cleanLuaU(processedCode);
   } else {
     processedCode = processedCode
@@ -91,7 +86,7 @@ export function obfuscateCode(code: string, engine: EngineType, preset: string):
   }
   processedCode = processedCode.split('\n').map(line => line.trim()).filter(l => l.length > 0).join(' ');
 
-  // 2. VIRTUALIZATION (The Compiler)
+  // 2. VIRTUALIZATION
   let vmScript = "";
   if (isLua) {
       try {
@@ -99,9 +94,7 @@ export function obfuscateCode(code: string, engine: EngineType, preset: string):
           vmScript = compiler.compile(processedCode);
       } catch (e) {
           console.error("Compilation failed:", e);
-          // SECURITY FIX: Do NOT return raw code if compilation fails.
-          // Return a broken script so you know to fix the syntax instead of leaking it.
-          vmScript = `error("Vexile Obfuscation Failed: Syntax Error in Input Script (Check for LuaU syntax like += or types)")`;
+          vmScript = `error("Vexile Obfuscation Failed: Syntax Error (Check LuaU types or += syntax)")`;
       }
   } else {
       return `/* Vexile Protected */ ${processedCode}`;
@@ -129,23 +122,19 @@ export function obfuscateCode(code: string, engine: EngineType, preset: string):
   let crashLogic = `function() local function c() return c() end; return c() end`; 
   if (isTest) crashLogic = `function() end`;
 
-  // 5. VM METATABLE (Optimized for Movement)
-  // [FIX]: We whitelisted 'game', 'Enum', 'math', 'workspace' to skip the security check.
-  // This prevents the thumbstick from lagging/breaking due to overhead.
+  // 5. VM METATABLE (CLEANED - NO COMMENTS)
+  // We removed all -- comments so the minifier won't break the code.
   let vmMetatable = `
     setmetatable(${vVM}, {
       __index = function(t, k)
-        -- [PERFORMANCE FIX] Skip checks for high-frequency globals
         if k == "game" or k == "Enum" or k == "math" or k == "workspace" or k == "table" then
             return getfenv(0)[k]
         end
 
-        -- [Anti-Tamper 1] Check if someone tried to hook/replace the environment
         if k == ${obfNum(1)} then
            if (getfenv and getfenv()[${strCheckIndex}]) then ${vReg}[${IDX_CRASH}]() end;
            return ${obfNum(2)};
         
-        -- [Anti-Tamper 2] Anti-Hook (Task Wait Check)
         elseif k == ${obfNum(2)} then
            if (${vReg}[${IDX_GETINFO}](${vReg}[${IDX_TASK}][${strWait}])[${strWhat}] ~= ${strC}) then ${vReg}[${IDX_CRASH}]() end;
            return ${obfNum(0)};
@@ -167,7 +156,7 @@ export function obfuscateCode(code: string, engine: EngineType, preset: string):
   // 6. PARSER BOMB
   let parserBomb = "";
   if (preset === "High") {
-     const bombDepth = 200; // Reduced slightly for stability on big scripts
+     const bombDepth = 200; 
      let bombStr = `0x${Math.floor(Math.random() * 10000).toString(16)}`;
      for (let i = 0; i < bombDepth; i++) {
         if (Math.random() > 0.5) bombStr = `(${bombStr}+${obfNum(Math.floor(Math.random() * 100))})`;
@@ -181,7 +170,7 @@ export function obfuscateCode(code: string, engine: EngineType, preset: string):
   
   const watermark = `--[[ This file is protected with Vexile v1.0.0 (discord.gg/vexile) ]]`;
 
-  // 7. ASSEMBLY
+  // 7. ASSEMBLY (CLEANED - NO COMMENTS)
   let rawScript = `
     (function()
       ${parserBomb}
@@ -216,6 +205,7 @@ export function obfuscateCode(code: string, engine: EngineType, preset: string):
     end)()
   `;
 
+  // Minify: Remove newlines and extra spaces
   let minifiedScript = rawScript.replace(/\n/g, ' ').replace(/\s+/g, ' ').trim();
   return `${watermark}\n${minifiedScript}`;
 }
