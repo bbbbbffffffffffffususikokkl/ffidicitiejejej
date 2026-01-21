@@ -7,7 +7,12 @@ enum Opcode {
   OP_GETTABLE = 3,
   OP_CALL = 4,
   OP_EXIT = 5,
-  OP_SELF = 6
+  OP_SELF = 6,
+  OP_ADD = 7,
+  OP_SUB = 8,
+  OP_MUL = 9,
+  OP_DIV = 10,
+  OP_CONCAT = 11
 }
 
 export class VexileCompiler {
@@ -30,19 +35,23 @@ export class VexileCompiler {
         this.instructions = [];
         this.constants = [];
 
+        // Parse AST
         const ast = luaparse.parse(sourceCode);
 
+        // Compile Body
         if (ast.type === 'Chunk') {
             ast.body.forEach(statement => this.compileStatement(statement));
         }
 
         this.emit(Opcode.OP_EXIT);
 
+        // Serialize to Decimal Escapes (\123)
         let bytecodeStr = "";
         this.instructions.forEach(byte => {
             bytecodeStr += "\\" + (byte % 256).toString();
         });
 
+        // Generate Constant Table
         let constTableLua = "local K = {}\n";
         this.constants.forEach((c, i) => {
             const val = typeof c === 'string' ? `"${c}"` : c;
@@ -62,17 +71,27 @@ export class VexileCompiler {
     }
 
     private compileExpression(node: any) {
-        if (node.type === 'CallExpression') {
+        if (node.type === 'BinaryExpression') {
+            // [NEW] Handle Math and Concatenation
+            this.compileExpression(node.left);
+            this.compileExpression(node.right);
+            
+            if (node.operator === '+') this.emit(Opcode.OP_ADD);
+            else if (node.operator === '-') this.emit(Opcode.OP_SUB);
+            else if (node.operator === '*') this.emit(Opcode.OP_MUL);
+            else if (node.operator === '/') this.emit(Opcode.OP_DIV);
+            else if (node.operator === '..') this.emit(Opcode.OP_CONCAT);
+        }
+        else if (node.type === 'CallExpression') {
             if (node.identifier) {
+                // Method call: game:GetService("Players")
                 this.compileExpression(node.base); 
-                
                 const idx = this.addConstant(node.identifier.name);
                 this.emit(Opcode.OP_SELF, 0, idx + 1);
-
                 node.arguments.forEach((arg: any) => this.compileExpression(arg));
-                
                 this.emit(Opcode.OP_CALL, 0, node.arguments.length + 1);
             } else {
+                // Regular call
                 this.compileExpression(node.base);
                 node.arguments.forEach((arg: any) => this.compileExpression(arg));
                 this.emit(Opcode.OP_CALL, 0, node.arguments.length);
@@ -137,30 +156,46 @@ export class VexileCompiler {
                     local dest = nextByte()
                     local kIdx = nextByte()
                     local key = K[kIdx]
-                    
-                    local obj = Stack[#Stack]
+                    local obj = table.remove(Stack)
                     local func = obj[key]
-                    
-                    Stack[#Stack] = func
+                    table.insert(Stack, func)
                     table.insert(Stack, obj)
 
                 elseif OP == ${Opcode.OP_CALL} then
                     local dest = nextByte() 
                     local argCount = nextByte()
-                    
                     local args = {}
-                    for i = 1, argCount do
-                        table.insert(args, 1, table.remove(Stack))
-                    end
-                    
+                    for i = 1, argCount do table.insert(args, 1, table.remove(Stack)) end
                     local func = table.remove(Stack)
-                    
                     if func then
                         local res = {func(unpack(args))}
-                        for _, v in ipairs(res) do
-                            table.insert(Stack, v)
-                        end
+                        for _, v in ipairs(res) do table.insert(Stack, v) end
                     end
+
+                elseif OP == ${Opcode.OP_ADD} then
+                    local b = table.remove(Stack)
+                    local a = table.remove(Stack)
+                    table.insert(Stack, a + b)
+                
+                elseif OP == ${Opcode.OP_SUB} then
+                    local b = table.remove(Stack)
+                    local a = table.remove(Stack)
+                    table.insert(Stack, a - b)
+
+                elseif OP == ${Opcode.OP_MUL} then
+                    local b = table.remove(Stack)
+                    local a = table.remove(Stack)
+                    table.insert(Stack, a * b)
+                
+                elseif OP == ${Opcode.OP_DIV} then
+                    local b = table.remove(Stack)
+                    local a = table.remove(Stack)
+                    table.insert(Stack, a / b)
+
+                elseif OP == ${Opcode.OP_CONCAT} then
+                    local b = table.remove(Stack)
+                    local a = table.remove(Stack)
+                    table.insert(Stack, a .. b)
                 
                 elseif OP == ${Opcode.OP_EXIT} then
                     break
