@@ -48,31 +48,37 @@ function genVar(): string {
 }
 
 function obfNum(n: number): string {
+  if (n === 0) return "0";
+  
   const method = Math.floor(Math.random() * 6);
   
   if (method === 0) {
-    return `0x${n.toString(16)}`;
+    return `0x${Math.abs(Math.floor(n)).toString(16)}`;
   } 
   if (method === 1) {
-    const p1 = Math.floor(Math.random() * Math.max(1, n));
-    return `(${p1}+${n - p1})`;
+    const p1 = Math.floor(Math.random() * Math.max(1, Math.abs(n)));
+    return `(${p1}+${Math.abs(n) - p1})`;
   }
   if (method === 2) {
     const mask = Math.floor(Math.random() * 255) + 1;
-    return `(bit32.bxor(${n ^ mask},${mask}))`;
+    const val = Math.abs(Math.floor(n));
+    return `(bit32.bxor(${val ^ mask},${mask}))`;
   }
   if (method === 3) {
     const factor = [2, 3, 4, 5][Math.floor(Math.random() * 4)];
-    return `(${n * factor}/${factor})`;
+    const val = Math.abs(Math.floor(n));
+    return `(${val * factor}/${factor})`;
   }
   if (method === 4) {
+    const val = Math.abs(Math.floor(n));
     const a = Math.floor(Math.random() * 50) + 1;
     const b = Math.floor(Math.random() * 50) + 1;
     const sum = a + b;
-    return `((${a}+${b})*${Math.floor(n / sum)}+${n % sum})`;
+    return `((${a}+${b})*${Math.floor(val / sum)}+${val % sum})`;
   }
   const shift = Math.floor(Math.random() * 3) + 1;
-  return `(bit32.rshift(${n << shift},${shift}))`;
+  const val = Math.abs(Math.floor(n));
+  return `(bit32.rshift(${val << shift},${shift}))`;
 }
 
 function encryptString(str: string, key: number, xorKey: number): string {
