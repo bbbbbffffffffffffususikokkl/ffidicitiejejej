@@ -52,73 +52,100 @@ function getDeadCode(preset: string): string {
   return junk;
 }
 
+function cleanLuaU(code: string): string {
+    return code
+        // 1. Remove Type Definitions (e.g. function(a: number))
+        .replace(/:\s*[a-zA-Z0-9_\.]+(?=[,\)])/g, "") 
+        .replace(/:\s*[a-zA-Z0-9_\.]+(?=\s*=)/g, "")
+        
+        // 2. Fix Compound Operators (+=, -=, *=, /=)
+        // [FIX] Added \[\]"'] to the regex to match table indexes like list[i] += 1
+        // We use a non-greedy match (.+?) that stops at newlines or semicolons
+        .replace(/([a-zA-Z0-9_\.\[\]"']+)\s*\+=\s*([^;\r\n]+)/g, "$1 = $1 + ($2)")
+        .replace(/([a-zA-Z0-9_\.\[\]"']+)\s*\-=\s*([^;\r\n]+)/g, "$1 = $1 - ($2)")
+        .replace(/([a-zA-Z0-9_\.\[\]"']+)\s*\*\=\s*([^;\r\n]+)/g, "$1 = $1 * ($2)")
+        .replace(/([a-zA-Z0-9_\.\[\]"']+)\s*\/\=\s*([^;\r\n]+)/g, "$1 = $1 / ($2)")
+        
+        // 3. Remove 'continue' keyword
+        .replace(/\bcontinue\b/g, " ")
+        
+        // 4. Remove 'type' exports
+        .replace(/export\s+type\s+[a-zA-Z0-9_]+\s*=.+$/gm, "") 
+        .replace(/type\s+[a-zA-Z0-9_]+\s*=.+$/gm, "")
+        
+        // 5. Cleanup empty lines
+        .replace(/^\s*[\r\n]/gm, "");
+}
+
 // --- MAIN OBFUSCATION FUNCTION ---
 
 export function obfuscateCode(code: string, engine: EngineType, preset: string): string {
   const isLua = engine === "LuaU";
   const isTest = preset === "Test"; 
 
-  // 1. CLEANUP
+  // 1. PRE-PROCESS
   let processedCode = code;
   if (isLua) {
-    //processedCode = processedCode
-      //.replace(/--\[\[(?! This file is protected with Vexile)[\s\S]*?\]\]/g, "")
-      //.replace(/--(?![\[])(?!.*Vexile).*$/gm, ""); 
+    // Remove comments first to prevent interfering with regex
+    processedCode = processedCode
+      .replace(/--\[\[(?! This file is protected with Vexile)[\s\S]*?\]\]/g, "")
+      .replace(/--(?![\[])(?!.*Vexile).*$/gm, ""); 
+    
+    // Fix LuaU syntax
+    processedCode = cleanLuaU(processedCode);
   } else {
     processedCode = processedCode
       .replace(/\/\*(?! This file is protected with Vexile)[\s\S]*?\*\//g, "") 
       .replace(/\/\/(?!.*Vexile).*$/gm, ""); 
   }
+  // Flatten code
   processedCode = processedCode.split('\n').map(line => line.trim()).filter(l => l.length > 0).join(' ');
 
-  // 2. VIRTUALIZATION (The Compiler)
-  // We compile the user code into a VM script.
+  // 2. VIRTUALIZATION
   let vmScript = "";
   if (isLua) {
       try {
           const compiler = new VexileCompiler();
           vmScript = compiler.compile(processedCode);
-            } catch (e: any) {
-            const err = e.message ? e.message.replace(/"/g, "'") : "Unknown Error";
-            vmScript = `error("Vexile Compiler Failed: ${err}")`; 
+      } catch (e: any) {
+          // [SECURITY FIX] Return an error message instead of leaking the source code
+          const err = e.message ? e.message.replace(/"/g, "'") : "Unknown Error";
+          vmScript = `error("Vexile Compiler Failed: ${err}")`; 
       }
-
   } else {
-      return `/* Vexile Protected */ ${processedCode}`;
+      return `/* This file is protected with Vexile v1.0.0 (discord.gg/vexile) */ ${processedCode}`;
   }
 
-  // 3. GENERATE WRAPPER VARIABLES
+  // 3. WRAPPER SETUP
   const vReg = genVar(); 
   const vVM = genVar();
   const vOp = genVar();
   
-  // Indices for our local wrapper table (Anti-Constant Collection logic)
   const IDX_STRING = 1;
   const IDX_CHAR = 2;
   const IDX_DEBUG = 7;
   const IDX_GETINFO = 8;
   const IDX_TASK = 9;
   const IDX_CRASH = 12;
-  const IDX_MAIN = 13; // The VM function
+  const IDX_MAIN = 13;
 
-  // 4. ANTI-TAMPER STRINGS (Encrypted)
-  // We need these strings to perform the checks ("what", "C", etc.)
-  // We hide them using character code generation so they aren't plain text.
   const strWhat = hideString("what", `${vReg}[${IDX_CHAR}]`);
   const strC = hideString("C", `${vReg}[${IDX_CHAR}]`); 
   const strWait = hideString("wait", `${vReg}[${IDX_CHAR}]`);
   const strCheckIndex = hideString("CHECKINDEX", `${vReg}[${IDX_CHAR}]`);
   
+  // 4. CRASH LOGIC
   let crashLogic = `function() local function c() return c() end; return c() end`; 
   if (isTest) crashLogic = `function() end`;
 
-
-  // 6. ANTI-TAMPER METATABLE (Prometheus Style)
-  // This wraps the environment. When the VM tries to call 'print' or 'game',
-  // it goes through this __index function first.
+  // 5. VM METATABLE
   let vmMetatable = `
     setmetatable(${vVM}, {
       __index = function(t, k)
+        if k == "game" or k == "Enum" or k == "math" or k == "workspace" or k == "table" then
+            return getfenv(0)[k]
+        end
+
         if k == ${obfNum(1)} then
            if (getfenv and getfenv()[${strCheckIndex}]) then ${vReg}[${IDX_CRASH}]() end;
            return ${obfNum(2)};
@@ -141,10 +168,10 @@ export function obfuscateCode(code: string, engine: EngineType, preset: string):
   
   if (isTest) vmMetatable = `setmetatable(${vVM}, { __index = function(t,k) return getfenv(0)[k] end, __newindex = function(t,k,v) getfenv(0)[k]=v end })`;
 
-  // 7. PARSER BOMB (Math Stack Overflow)
+  // 6. PARSER BOMB
   let parserBomb = "";
-  if (preset === "High") {
-     const bombDepth = 300; 
+  if (preset === "High" || preset == "Medium") {
+     const bombDepth = 200; 
      let bombStr = `0x${Math.floor(Math.random() * 10000).toString(16)}`;
      for (let i = 0; i < bombDepth; i++) {
         if (Math.random() > 0.5) bombStr = `(${bombStr}+${obfNum(Math.floor(Math.random() * 100))})`;
@@ -158,7 +185,7 @@ export function obfuscateCode(code: string, engine: EngineType, preset: string):
   
   const watermark = `--[[ This file is protected with Vexile v1.0.0 (discord.gg/vexile) ]]`;
 
-  // 8. FINAL ASSEMBLY
+  // 7. ASSEMBLY
   let rawScript = `
     (function()
       ${parserBomb}
@@ -194,5 +221,5 @@ export function obfuscateCode(code: string, engine: EngineType, preset: string):
   `;
 
   let minifiedScript = rawScript.replace(/\n/g, ' ').replace(/\s+/g, ' ').trim();
-  return `${watermark}\n${rawScript}`;
+  return `${watermark}\n${minifiedScript}`;
 }
