@@ -27,16 +27,33 @@ function hideString(str: string, charFuncVar: string): string {
   return `${charFuncVar}(${args.join(',')})`;
 }
 
-// [FIXED] Removed the comment insertion in cleanLuaU
 function cleanLuaU(code: string): string {
     return code
-        .replace(/([a-zA-Z0-9_\.]+)\s*\+=\s*(.+)/g, "$1 = $1 + ($2)")
-        .replace(/([a-zA-Z0-9_\.]+)\s*\-=\s*(.+)/g, "$1 = $1 - ($2)")
-        .replace(/([a-zA-Z0-9_\.]+)\s*\*\=\s*(.+)/g, "$1 = $1 * ($2)")
-        .replace(/([a-zA-Z0-9_\.]+)\s*\/\=\s*(.+)/g, "$1 = $1 / ($2)")
-        // Replaced 'continue' with an empty space instead of a comment
-        .replace(/\bcontinue\b/g, " ");
+        // 1. Remove Type Assertions/Definitions (e.g., local x: number, function(a: string))
+        // Matches ": type" and removes it, being careful not to break table keys like {key: val} (which is valid JS/LuaU but mostly : is for types in args)
+        // Note: Simple regex for types is risky, but safe for standard "var: type" patterns.
+        .replace(/:\s*[a-zA-Z0-9_\.]+(?=[,\)])/g, "") // Remove types in function args: function(a: number, b: string) -> function(a, b)
+        .replace(/:\s*[a-zA-Z0-9_\.]+(?=\s*=)/g, "")   // Remove types in var declarations: local x: number = 5 -> local x = 5
+        
+        // 2. Fix Compound Operators (+=, -=, *=, /=)
+        // We match the variable name, the operator, and the value
+        .replace(/([a-zA-Z0-9_\.\[\]\"\']+)\s*\+=\s*([^;]+)/g, "$1 = $1 + ($2)")
+        .replace(/([a-zA-Z0-9_\.\[\]\"\']+)\s*\-=\s*([^;]+)/g, "$1 = $1 - ($2)")
+        .replace(/([a-zA-Z0-9_\.\[\]\"\']+)\s*\*\=\s*([^;]+)/g, "$1 = $1 * ($2)")
+        .replace(/([a-zA-Z0-9_\.\[\]\"\']+)\s*\/\=\s*([^;]+)/g, "$1 = $1 / ($2)")
+        
+        // 3. Remove 'continue'
+        .replace(/\bcontinue\b/g, " ")
+        
+        // 4. Remove 'type' and 'export type' definitions entirely
+        // Matches "type Name = ..." or "export type Name = ..."
+        .replace(/export\s+type\s+[a-zA-Z0-9_]+\s*=.+$/gm, "") 
+        .replace(/type\s+[a-zA-Z0-9_]+\s*=.+$/gm, "")
+        
+        // 5. Cleanup empty lines left by removal
+        .replace(/^\s*[\r\n]/gm, "");
 }
+
 
 function getDeadCode(preset: string): string {
   let blocksToGenerate = 10;
