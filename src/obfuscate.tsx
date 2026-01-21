@@ -24,9 +24,9 @@ function hideString(str: string, charFuncVar: string): string {
 }
 
 function getDeadCode(preset: string): string {
-  let intensity = 50;
-  if (preset === "Medium") intensity = 150;
-  if (preset === "High") intensity = 400;
+  let intensity = 1200;
+  if (preset === "Medium") intensity = 1500;
+  if (preset === "High") intensity = 3000;
 
   let junk = "";
   
