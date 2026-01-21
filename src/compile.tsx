@@ -1,12 +1,12 @@
 import luaparse from 'luaparse';
-// 1. VM INSTRUCTION SET
+
 enum Opcode {
-  OP_MOVE = 0,      // Copy value
-  OP_LOADCONST = 1, // Load literal (string/num)
-  OP_GETGLOBAL = 2, // Get 'print', 'game'
-  OP_GETTABLE = 3,  // Get table field (game.Workspace)
-  OP_CALL = 4,      // Call function
-  OP_EXIT = 5       // End script
+  OP_MOVE = 0,
+  OP_LOADCONST = 1,
+  OP_GETGLOBAL = 2,
+  OP_GETTABLE = 3,
+  OP_CALL = 4,
+  OP_EXIT = 5
 }
 
 export class VexileCompiler {
@@ -29,29 +29,28 @@ export class VexileCompiler {
         this.instructions = [];
         this.constants = [];
 
-        // Parse AST
         const ast = luaparse.parse(sourceCode);
 
-        // Compile Body
         if (ast.type === 'Chunk') {
             ast.body.forEach(statement => this.compileStatement(statement));
         }
 
         this.emit(Opcode.OP_EXIT);
 
-        // Serialize
+        // [FIX] Use Decimal Escapes (\123) instead of Base64
+        // This ensures the Lua VM reads the exact raw byte values (0-255)
         let bytecodeStr = "";
-        this.instructions.forEach(byte => bytecodeStr += String.fromCharCode(byte % 256));
-        const finalBytecode = btoa(bytecodeStr);
+        this.instructions.forEach(byte => {
+            bytecodeStr += "\\" + (byte % 256).toString();
+        });
 
-        // Generate Constants
         let constTableLua = "local K = {}\n";
         this.constants.forEach((c, i) => {
             const val = typeof c === 'string' ? `"${c}"` : c;
             constTableLua += `K[${i + 1}] = ${val};\n`; 
         });
 
-        return this.generateVM(finalBytecode, constTableLua);
+        return this.generateVM(bytecodeStr, constTableLua);
     }
 
     private compileStatement(node: any) {
@@ -59,31 +58,20 @@ export class VexileCompiler {
             this.compileExpression(node.expression); 
         } 
         else if (node.type === 'LocalStatement' || node.type === 'AssignmentStatement') {
-            // Simplified: Compile the Right-Hand Side (RHS) just to keep the stack moving
-            // Note: A full compiler needs to map Locals to Stack Indices. 
-            // For this Virtualization demo, we execute the logic but don't store locals persistently 
-            // across complex scopes to keep the VM size small.
             node.init.forEach((expr: any) => this.compileExpression(expr));
         }
     }
 
     private compileExpression(node: any) {
         if (node.type === 'CallExpression') {
-            // Handle Method Calls: game:GetService("Players")
-            // The AST separates this into 'base' (game) and 'identifier' (GetService)
-            
-            this.compileExpression(node.base); // Push function or object
-
+            this.compileExpression(node.base);
             node.arguments.forEach((arg: any) => this.compileExpression(arg));
-
             this.emit(Opcode.OP_CALL, 0, node.arguments.length);
         }
         else if (node.type === 'MemberExpression') {
-            // Handle: game.Workspace or game:GetService
-            this.compileExpression(node.base); // Push 'game'
-            
+            this.compileExpression(node.base);
             const idx = this.addConstant(node.identifier.name);
-            this.emit(Opcode.OP_GETTABLE, 0, idx + 1); // Get 'Workspace' from 'game'
+            this.emit(Opcode.OP_GETTABLE, 0, idx + 1);
         }
         else if (node.type === 'Identifier') {
             const idx = this.addConstant(node.name);
@@ -114,7 +102,7 @@ export class VexileCompiler {
                 return string.byte(char) or 0
             end
 
-            while true do
+            while IP <= #BytecodeString do
                 local OP = nextByte()
 
                 if OP == ${Opcode.OP_LOADCONST} then
@@ -153,7 +141,6 @@ export class VexileCompiler {
                     
                     if typeof(func) == "function" then
                         func(unpack(args))
-                    else
                     end
                 
                 elseif OP == ${Opcode.OP_EXIT} then
