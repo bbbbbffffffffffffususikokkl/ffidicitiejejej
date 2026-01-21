@@ -1,68 +1,43 @@
-// src/obfuscate.ts
-
 type EngineType = "LuaU" | "JavaScript (MCBE)";
 
-// --- Helper: Generate Random Hex Variable Names (e.g., _0x4F2, _0xA91) ---
 function genVar(): string {
   const hex = "0123456789ABCDEF";
   let res = "_0x";
-  for (let i = 0; i < 3; i++) {
-    res += hex[Math.floor(Math.random() * hex.length)];
-  }
+  for (let i = 0; i < 3; i++) res += hex[Math.floor(Math.random() * hex.length)];
   return res;
 }
 
-// --- Helper: Obfuscate Numbers (Math/Hex Mix) ---
 function obfNum(n: number): string {
   const method = Math.floor(Math.random() * 3);
   if (method === 0) return `0x${n.toString(16)}`; 
   if (method === 1) { 
-      const part1 = Math.floor(Math.random() * n);
-      const part2 = n - part1;
-      return `(${part1}+${part2})`; 
+      const p1 = Math.floor(Math.random() * n);
+      return `(${p1}+${n - p1})`; 
   }
   return `(${n})`; 
 }
 
-// --- Helper: Hide Logic Strings using Obfuscated Numbers ---
 function hideString(str: string, charFuncVar: string): string {
   let args = [];
-  for(let i=0; i<str.length; i++) {
-    args.push(obfNum(str.charCodeAt(i)));
-  }
+  for(let i=0; i<str.length; i++) args.push(obfNum(str.charCodeAt(i)));
   return `${charFuncVar}(${args.join(',')})`;
 }
 
-// --- Helper: Dead Code Generator ---
 function getDeadCode(preset: string): string {
-  let intensity = 7;
-  if (preset === "Medium") intensity = 25; 
-  if (preset === "High") intensity = 40;   
+  let intensity = 5;
+  if (preset === "Medium") intensity = 15; 
+  if (preset === "High") intensity = 30;   
 
   let junk = "";
+  const vReg = genVar();
+  junk += `local ${vReg}={};`;
   
-  // 1. Fake Memory Table
-  const junkTableSize = intensity * 25; 
-  let tableContent = "";
-  for(let i=0; i<junkTableSize; i++) {
-     const str = Math.random().toString(36).substring(2, 10) + Math.random().toString(36).substring(2, 6);
-     tableContent += `"${str}",`;
-  }
-  junk += `local ${genVar()}={${tableContent}};`;
-
-  // 2. Fake Math Loop
-  const v1 = genVar();
-  const v2 = genVar();
-  const vFakeFunc = genVar();
+  const vPC = genVar(); 
+  junk += `for ${vPC}=${obfNum(1)},${obfNum(intensity)} do ${vReg}[${vPC}]=${vPC}*${obfNum(2)}; end;`;
   
-  // 3. Fake Function
-  junk += `local function ${vFakeFunc}(_p) return _p*${obfNum(2)} end;`;
-  junk += `local ${v1}=${obfNum(Math.floor(Math.random()*999))};for ${v2}=${obfNum(1)},${obfNum(intensity)} do ${v1}=(${v1}*${v2})%${obfNum(9999)};${vFakeFunc}(${v1});end;`;
-
   return junk;
 }
 
-// --- Helper: String Encryption ---
 function encryptString(str: string, key: number): string {
   let result = "";
   for (let i = 0; i < str.length; i++) {
@@ -77,9 +52,7 @@ export function obfuscateCode(code: string, engine: EngineType, preset: string):
   const isLua = engine === "LuaU";
   const isTest = preset === "Test"; 
 
-  // --- Step 1: Strip Comments & Minify User Code ---
   let processedCode = code;
-
   if (isLua) {
     processedCode = processedCode
       .replace(/--\[\[(?! This file is protected with Vexile)[\s\S]*?\]\]/g, "")
@@ -89,112 +62,137 @@ export function obfuscateCode(code: string, engine: EngineType, preset: string):
       .replace(/\/\*(?! This file is protected with Vexile)[\s\S]*?\*\//g, "") 
       .replace(/\/\/(?!.*Vexile).*$/gm, ""); 
   }
-  
   processedCode = processedCode.split('\n').map(line => line.trim()).filter(l => l.length > 0).join(' ');
 
-  if (!isLua) {
-      return `/* This file is protected with Vexile v1.0.0 (discord.gg/vexile) */ ${processedCode}`;
-  }
+  if (!isLua) return `/* Vexile 2.0 Protected */ ${processedCode}`;
 
-  // --- Step 2: Generate Obfuscation Logic ---
+  const vReg = genVar(); 
+  const IDX_STRING = 1;
+  const IDX_CHAR = 2;
+  const IDX_BYTE = 3;
+  const IDX_TABLE = 4;
+  const IDX_INSERT = 5;
+  const IDX_CONCAT = 6;
+  const IDX_DEBUG = 7;
+  const IDX_GETINFO = 8;
+  const IDX_TASK = 9;
+  const IDX_CONSTANTS = 10; 
+  const IDX_DECRYPT = 11;
+  const IDX_CRASH = 12;
 
-  // Variable Names
-  const vDebug = genVar();
-  const vGetInfo = genVar(); 
-  const vString = genVar();
-  const vChar = genVar();    
-  const vByte = genVar();    
-  const vConcat = genVar();
-  const vTable = genVar();
-  const vInsert = genVar();
-  const vTask = genVar();
-  
-  // Logic Functions
-  const vCrash = genVar();
-  
-  // FIX: Include semicolon inside the string, so empty string = no semicolon
-  let crashLogic = `local function ${vCrash}()return ${vCrash}()end;`; 
-  if (isTest) crashLogic = "";
+  let encryptKey = Math.floor(Math.random() * 50) + 1; 
+  if (preset === "Medium") encryptKey = Math.floor(Math.random() * 150) + 50; 
+  if (preset === "High")   encryptKey = Math.floor(Math.random() * 200) + 55; 
 
-  const vDecrypt = genVar();
-  const vStrArg = genVar();
-  const encryptKey = Math.floor(Math.random() * 100) + 1;
   const kKey = obfNum(encryptKey);
   const k256 = obfNum(256);
+  
+  let constantsList: string[] = [];
+  
+  const decryptLogic = `
+    function(s)
+      local r={}
+      for i=1,#s do
+        local b=${vReg}[${IDX_BYTE}](s,i)
+        ${vReg}[${IDX_INSERT}](r,${vReg}[${IDX_CHAR}]((b-i-${kKey})%${k256}))
+      end
+      return ${vReg}[${IDX_CONCAT}](r)
+    end
+  `.replace(/\n/g, ' ').trim();
 
-  // FIX: Added trailing semicolon
-  const decryptLogic = `local function ${vDecrypt}(${vStrArg})local _r={} for _i=1,#${vStrArg} do local _b=${vByte}(${vStrArg},_i) ${vInsert}(_r,${vChar}((_b-_i-${kKey})%${k256})) end return ${vConcat}(_r) end;`;
-
-  // Encrypt User Strings
-  if (preset == "High" || preset == "Medium" || preset == "Fast") {
-      processedCode = processedCode.replace(/"([^"\\]*(?:\\.[^"\\]*)*)"|'([^'\\]*(?:\\.[^'\\]*)*)'/g, (match, p1, p2) => {
-          const raw = p1 || p2 || "";
-          if (raw.length === 0) return match;
-          return `${vDecrypt}("${encryptString(raw, encryptKey)}")`;
-      });
+  if (!isTest) {
+    processedCode = processedCode.replace(/"([^"\\]*(?:\\.[^"\\]*)*)"|'([^'\\]*(?:\\.[^'\\]*)*)'/g, (match, p1, p2) => {
+        const raw = p1 || p2 || "";
+        if (raw.length === 0) return match;
+        
+        const encrypted = encryptString(raw, encryptKey);
+        constantsList.push(encrypted);
+        const idx = constantsList.length; 
+        
+        return `${vReg}[${IDX_DECRYPT}](${vReg}[${IDX_CONSTANTS}][${idx}])`;
+    });
   }
 
-  // Anti-Tamper State Machine
-  const vState = genVar();
-  const loopDeadCode = getDeadCode(preset === "High" ? "Medium" : "Fast");
+  const constantsTableStr = "{" + constantsList.map(s => `"${s}"`).join(',') + "}";
+
+  const vVM = genVar();
+  const vOp = genVar();
   
-  const strWhat = hideString("what", vChar);
-  const strC = hideString("C", vChar); 
-  const strWait = hideString("wait", vChar);
-  const strCheckIndex = hideString("CHECKINDEX", vChar);
+  const strWhat = hideString("what", `${vReg}[${IDX_CHAR}]`);
+  const strC = hideString("C", `${vReg}[${IDX_CHAR}]`); 
+  const strWait = hideString("wait", `${vReg}[${IDX_CHAR}]`);
+  const strCheckIndex = hideString("CHECKINDEX", `${vReg}[${IDX_CHAR}]`);
 
-  // FIX: Include trailing semicolon
-  let antiTamperLogic = `local ${vState}=${obfNum(1)};while ${vState}~=${obfNum(0)} do if ${vState}==${obfNum(1)} then ${loopDeadCode} if(getfenv and getfenv()[${strCheckIndex}])then ${vCrash}() end; ${vState}=${obfNum(2)}; elseif ${vState}==${obfNum(2)} then if(${vGetInfo}(${vTask}[${strWait}])[${strWhat}]~=${strC})then ${vCrash}() end; ${vState}=${obfNum(3)}; elseif ${vState}==${obfNum(3)} then ${vState}=${obfNum(0)}; end end;`;
+  let crashLogic = `function() local function c() return c() end; return c() end`;
+  if (isTest) crashLogic = `function() end`;
+
+  let vmMetatable = `
+    setmetatable(${vVM}, {
+      __index = function(t, k)
+        if k == ${obfNum(1)} then
+           if (getfenv and getfenv()[${strCheckIndex}]) then ${vReg}[${IDX_CRASH}]() end;
+           return ${obfNum(2)};
+        elseif k == ${obfNum(2)} then
+           if (${vReg}[${IDX_GETINFO}](${vReg}[${IDX_TASK}][${strWait}])[${strWhat}] ~= ${strC}) then ${vReg}[${IDX_CRASH}]() end;
+           return ${obfNum(0)};
+        end
+        return ${obfNum(0)};
+      end
+    })
+  `;
+  if (isTest) vmMetatable = `setmetatable(${vVM}, { __index = function() return 0 end })`;
+
+  const deadBlock1 = getDeadCode(preset);
+  const deadBlock2 = getDeadCode(preset);
+  const deadBlock3 = getDeadCode(preset);
   
-  if (isTest) {
-    antiTamperLogic = ""; 
-  }
-
-  // --- DEAD CODE GENERATION ---
-  const deadBlock1 = getDeadCode(preset); 
-  const deadBlock2 = getDeadCode(preset); 
-  const deadBlock3 = getDeadCode(preset); 
-
-  // Parser Bomb (High Only)
   let parserBomb = "";
-  if (preset === "High" || preset == "Medium") {
-     const bombDepth = 200;
-     const innerValue = `0x${Math.floor(Math.random()*10000).toString(16)}`; 
-     parserBomb = `local ${genVar()} = ${"{".repeat(bombDepth)}${innerValue}${"}".repeat(bombDepth)};`;
+  if (preset === "High") {
+     const bombDepth = 200; 
+     const val = `0x${Math.floor(Math.random()*10000).toString(16)}`; 
+     parserBomb = `local ${genVar()} = ${"{".repeat(bombDepth)}${val}${"}".repeat(bombDepth)};`;
   }
 
-  // --- Step 3: Final Assembly ---
-  
   const headerStart = isLua ? "--[[" : "/*";
   const headerEnd = isLua ? "]]" : "*/";
   const watermark = `${headerStart} This file is protected with Vexile v1.0.0 (discord.gg/vexile) ${headerEnd}`;
 
-  // FIX: Removed explicit semicolons between blocks.
-  // The blocks themselves now carry the semicolon if they are active.
   let rawScript = `
     (function()
       ${parserBomb}
+      
+      local ${vReg} = {}
+      ${vReg}[${IDX_STRING}] = string;
+      ${vReg}[${IDX_CHAR}] = ${vReg}[${IDX_STRING}].char;
+      ${vReg}[${IDX_BYTE}] = ${vReg}[${IDX_STRING}].byte;
+      ${vReg}[${IDX_TABLE}] = table;
+      ${vReg}[${IDX_INSERT}] = ${vReg}[${IDX_TABLE}].insert;
+      ${vReg}[${IDX_CONCAT}] = ${vReg}[${IDX_TABLE}].concat;
+      ${vReg}[${IDX_DEBUG}] = debug;
+      ${vReg}[${IDX_GETINFO}] = ${vReg}[${IDX_DEBUG}].getinfo;
+      ${vReg}[${IDX_TASK}] = task;
+      ${vReg}[${IDX_CRASH}] = ${crashLogic};
+      ${vReg}[${IDX_DECRYPT}] = ${decryptLogic};
+      
+      ${vReg}[${IDX_CONSTANTS}] = ${constantsTableStr};
+
       ${deadBlock1}
-      local ${vString}=string;
-      local ${vChar}=${vString}.char;
-      local ${vByte}=${vString}.byte;
-      local ${vTable}=table;
-      local ${vInsert}=${vTable}.insert;
-      local ${vConcat}=${vTable}.concat;
-      local ${vDebug}=debug;
-      local ${vGetInfo}=${vDebug}.getinfo;
-      local ${vTask}=task;
-      ${crashLogic}
+
+      local ${vVM} = {}
+      ${vmMetatable}
+      
+      local ${vOp} = ${obfNum(1)};
+      ${vOp} = ${vVM}[${vOp}]; 
+      ${vOp} = ${vVM}[${vOp}]; 
+
       ${deadBlock2}
-      ${decryptLogic}
-      ${antiTamperLogic}
+
       ${processedCode};
+      
       ${deadBlock3}
     end)()
   `;
 
-  // Minify Boilerplate
   let minifiedScript = rawScript.replace(/\n/g, ' ').replace(/\s+/g, ' ').trim();
-
   return `${watermark}\n${minifiedScript}`;
 }
