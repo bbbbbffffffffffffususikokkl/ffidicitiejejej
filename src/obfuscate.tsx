@@ -27,16 +27,24 @@ function hideString(str: string, charFuncVar: string): string {
 
 function cleanLuaU(code: string): string {
     return code
+        // [NEW] Optimize GetService: Converts game:GetService("Players") -> game["Players"]
+        // This fixes the "Expected ':' not '.'" VM error by avoiding the method call entirely.
+        .replace(/:\s*GetService\s*\(\s*(["'])([^"']+)\1\s*\)/g, '["$2"]')
+
+        // 1. Remove Type Definitions (: number)
         .replace(/([a-zA-Z0-9_]+):\s*[a-zA-Z0-9_\.]+(?=[,\)])/g, "$1") 
         .replace(/([a-zA-Z0-9_]+):\s*[a-zA-Z0-9_\.]+(?=\s*=)/g, "$1")
         
+        // 2. Fix Compound Operators (+=, -=, etc.)
         .replace(/([a-zA-Z0-9_\.\[\]"']+)\s*\+=\s*([^;\r\n]+)/g, "$1 = $1 + ($2)")
         .replace(/([a-zA-Z0-9_\.\[\]"']+)\s*\-=\s*([^;\r\n]+)/g, "$1 = $1 - ($2)")
         .replace(/([a-zA-Z0-9_\.\[\]"']+)\s*\*\=\s*([^;\r\n]+)/g, "$1 = $1 * ($2)")
         .replace(/([a-zA-Z0-9_\.\[\]"']+)\s*\/\=\s*([^;\r\n]+)/g, "$1 = $1 / ($2)")
         
+        // 3. Remove 'continue'
         .replace(/\bcontinue\b/g, " ")
         
+        // 4. Remove types
         .replace(/export\s+type\s+[a-zA-Z0-9_]+\s*=.+$/gm, "") 
         .replace(/type\s+[a-zA-Z0-9_]+\s*=.+$/gm, "")
         
