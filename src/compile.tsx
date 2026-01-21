@@ -1,3 +1,4 @@
+import luaparse from 'luaparse';
 // 1. VM INSTRUCTION SET
 enum Opcode {
   OP_MOVE = 0,      // Copy value
