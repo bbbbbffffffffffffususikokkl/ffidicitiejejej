@@ -1,4 +1,4 @@
-import { VexileCompiler } from './compile'; // Ensure this path matches your file
+import { VexileCompiler } from './compile';
 
 type EngineType = "LuaU" | "JavaScript (MCBE)";
 
@@ -25,28 +25,28 @@ function hideString(str: string, charFuncVar: string): string {
   return `${charFuncVar}(${args.join(',')})`;
 }
 
-// [FIXED] Regex now handles brackets and quotes in variables
 function cleanLuaU(code: string): string {
     return code
         .replace(/([a-zA-Z0-9_]+):\s*[a-zA-Z0-9_\.]+(?=[,\)])/g, "$1") 
         .replace(/([a-zA-Z0-9_]+):\s*[a-zA-Z0-9_\.]+(?=\s*=)/g, "$1")
         
-        // Handles list[i] += 1
         .replace(/([a-zA-Z0-9_\.\[\]"']+)\s*\+=\s*([^;\r\n]+)/g, "$1 = $1 + ($2)")
         .replace(/([a-zA-Z0-9_\.\[\]"']+)\s*\-=\s*([^;\r\n]+)/g, "$1 = $1 - ($2)")
         .replace(/([a-zA-Z0-9_\.\[\]"']+)\s*\*\=\s*([^;\r\n]+)/g, "$1 = $1 * ($2)")
         .replace(/([a-zA-Z0-9_\.\[\]"']+)\s*\/\=\s*([^;\r\n]+)/g, "$1 = $1 / ($2)")
         
         .replace(/\bcontinue\b/g, " ")
+        
         .replace(/export\s+type\s+[a-zA-Z0-9_]+\s*=.+$/gm, "") 
         .replace(/type\s+[a-zA-Z0-9_]+\s*=.+$/gm, "")
+        
         .replace(/^\s*[\r\n]/gm, "");
 }
 
 function getDeadCode(preset: string): string {
-  let blocksToGenerate = 10; // Keep low to avoid huge file size
-  if (preset === "Medium") blocksToGenerate = 40;
-  if (preset === "High") blocksToGenerate = 100; 
+  let blocksToGenerate = 20; 
+  if (preset === "Medium") blocksToGenerate = 100;
+  if (preset === "High") blocksToGenerate = 300; 
 
   let junk = "";
   const vTab = genVar();
@@ -58,7 +58,7 @@ function getDeadCode(preset: string): string {
     const type = Math.floor(Math.random() * 3);
 
     if (type === 0) {
-        junk += `for ${vIdx}=1,${obfNum(Math.floor(Math.random() * 5) + 1)} do ${vTab}[${vIdx}]=${obfNum(i)}*${obfNum(2)} end; `;
+        junk += `for ${vIdx}=1,${obfNum(Math.floor(Math.random() * 10) + 1)} do ${vTab}[${vIdx}]=${obfNum(i)}*${obfNum(2)} end; `;
     } else if (type === 1) {
         junk += `local ${vVal}=${obfNum(Math.floor(Math.random() * 500))}; `;
         junk += `if ${vVal}>${obfNum(250)} then ${vTab}[${obfNum(i)}]=${vVal} else ${vTab}[${obfNum(i)}]=0 end; `;
@@ -150,7 +150,7 @@ export function obfuscateCode(code: string, engine: EngineType, preset: string):
   if (isTest) vmMetatable = `setmetatable(${vVM}, { __index = function(t,k) return getfenv(0)[k] end, __newindex = function(t,k,v) getfenv(0)[k]=v end })`;
 
   let parserBomb = "";
-  if (preset === "High") {
+  if (preset === "High" || preset == "Medium") {
      const bombDepth = 200; 
      let bombStr = `0x${Math.floor(Math.random() * 10000).toString(16)}`;
      for (let i = 0; i < bombDepth; i++) {
