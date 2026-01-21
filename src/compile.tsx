@@ -7,7 +7,7 @@ enum Opcode {
   OP_GETTABLE = 3,
   OP_CALL = 4,
   OP_EXIT = 5,
-  OP_SELF = 6  // [NEW] Handles colon calls (game:GetService)
+  OP_SELF = 6
 }
 
 export class VexileCompiler {
@@ -63,23 +63,19 @@ export class VexileCompiler {
 
     private compileExpression(node: any) {
         if (node.type === 'CallExpression') {
-            // Check if this is a method call (game:GetService)
-            // luaparse puts the method name in 'identifier' for colon calls
             if (node.identifier) {
-                // 1. Compile the object (game) -> Pushes [game]
+                // Method call: game:GetService("Players")
                 this.compileExpression(node.base); 
                 
-                // 2. Emit OP_SELF to prepare stack -> [GetService, game]
                 const idx = this.addConstant(node.identifier.name);
                 this.emit(Opcode.OP_SELF, 0, idx + 1);
 
-                // 3. Compile args -> [GetService, game, "Players"]
                 node.arguments.forEach((arg: any) => this.compileExpression(arg));
                 
-                // 4. Call (Args count + 1 for 'self')
+                // Call with argCount + 1 (for self)
                 this.emit(Opcode.OP_CALL, 0, node.arguments.length + 1);
             } else {
-                // Regular call (game.Workspace or print)
+                // Regular call
                 this.compileExpression(node.base);
                 node.arguments.forEach((arg: any) => this.compileExpression(arg));
                 this.emit(Opcode.OP_CALL, 0, node.arguments.length);
@@ -162,8 +158,11 @@ export class VexileCompiler {
                     
                     local func = table.remove(Stack)
                     
-                    if typeof(func) == "function" then
-                        func(unpack(args))
+                    if func then
+                        local res = {func(unpack(args))}
+                        for _, v in ipairs(res) do
+                            table.insert(Stack, v)
+                        end
                     end
                 
                 elseif OP == ${Opcode.OP_EXIT} then

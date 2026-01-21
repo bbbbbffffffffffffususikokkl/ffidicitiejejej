@@ -25,7 +25,30 @@ function hideString(str: string, charFuncVar: string): string {
   return `${charFuncVar}(${args.join(',')})`;
 }
 
-// Dead code generator (Updated loop version)
+function cleanLuaU(code: string): string {
+    return code
+        // 1. Remove Type Definitions (: number)
+        // [FIX] Stricter regex to avoid matching ":GetService"
+        // Only matches if followed by comma, paren, or equals, AND preceded by a word
+        .replace(/([a-zA-Z0-9_]+):\s*[a-zA-Z0-9_\.]+(?=[,\)])/g, "$1") 
+        .replace(/([a-zA-Z0-9_]+):\s*[a-zA-Z0-9_\.]+(?=\s*=)/g, "$1")
+        
+        // 2. Fix Compound Operators
+        .replace(/([a-zA-Z0-9_\.\[\]"']+)\s*\+=\s*([^;\r\n]+)/g, "$1 = $1 + ($2)")
+        .replace(/([a-zA-Z0-9_\.\[\]"']+)\s*\-=\s*([^;\r\n]+)/g, "$1 = $1 - ($2)")
+        .replace(/([a-zA-Z0-9_\.\[\]"']+)\s*\*\=\s*([^;\r\n]+)/g, "$1 = $1 * ($2)")
+        .replace(/([a-zA-Z0-9_\.\[\]"']+)\s*\/\=\s*([^;\r\n]+)/g, "$1 = $1 / ($2)")
+        
+        // 3. Remove 'continue'
+        .replace(/\bcontinue\b/g, " ")
+        
+        // 4. Remove types
+        .replace(/export\s+type\s+[a-zA-Z0-9_]+\s*=.+$/gm, "") 
+        .replace(/type\s+[a-zA-Z0-9_]+\s*=.+$/gm, "")
+        
+        .replace(/^\s*[\r\n]/gm, "");
+}
+
 function getDeadCode(preset: string): string {
   let blocksToGenerate = 20; 
   if (preset === "Medium") blocksToGenerate = 100;
@@ -52,63 +75,30 @@ function getDeadCode(preset: string): string {
   return junk;
 }
 
-function cleanLuaU(code: string): string {
-    return code
-        // 1. Remove Type Definitions (e.g. function(a: number))
-        .replace(/:\s*[a-zA-Z0-9_\.]+(?=[,\)])/g, "") 
-        .replace(/:\s*[a-zA-Z0-9_\.]+(?=\s*=)/g, "")
-        
-        // 2. Fix Compound Operators (+=, -=, *=, /=)
-        // [FIX] Added \[\]"'] to the regex to match table indexes like list[i] += 1
-        // We use a non-greedy match (.+?) that stops at newlines or semicolons
-        .replace(/([a-zA-Z0-9_\.\[\]"']+)\s*\+=\s*([^;\r\n]+)/g, "$1 = $1 + ($2)")
-        .replace(/([a-zA-Z0-9_\.\[\]"']+)\s*\-=\s*([^;\r\n]+)/g, "$1 = $1 - ($2)")
-        .replace(/([a-zA-Z0-9_\.\[\]"']+)\s*\*\=\s*([^;\r\n]+)/g, "$1 = $1 * ($2)")
-        .replace(/([a-zA-Z0-9_\.\[\]"']+)\s*\/\=\s*([^;\r\n]+)/g, "$1 = $1 / ($2)")
-        
-        // 3. Remove 'continue' keyword
-        .replace(/\bcontinue\b/g, " ")
-        
-        // 4. Remove 'type' exports
-        .replace(/export\s+type\s+[a-zA-Z0-9_]+\s*=.+$/gm, "") 
-        .replace(/type\s+[a-zA-Z0-9_]+\s*=.+$/gm, "")
-        
-        // 5. Cleanup empty lines
-        .replace(/^\s*[\r\n]/gm, "");
-}
-
-// --- MAIN OBFUSCATION FUNCTION ---
-
 export function obfuscateCode(code: string, engine: EngineType, preset: string): string {
   const isLua = engine === "LuaU";
   const isTest = preset === "Test"; 
 
-  // 1. PRE-PROCESS
   let processedCode = code;
   if (isLua) {
-    // Remove comments first to prevent interfering with regex
     processedCode = processedCode
       .replace(/--\[\[(?! This file is protected with Vexile)[\s\S]*?\]\]/g, "")
       .replace(/--(?![\[])(?!.*Vexile).*$/gm, ""); 
     
-    // Fix LuaU syntax
     processedCode = cleanLuaU(processedCode);
   } else {
     processedCode = processedCode
       .replace(/\/\*(?! This file is protected with Vexile)[\s\S]*?\*\//g, "") 
       .replace(/\/\/(?!.*Vexile).*$/gm, ""); 
   }
-  // Flatten code
   processedCode = processedCode.split('\n').map(line => line.trim()).filter(l => l.length > 0).join(' ');
 
-  // 2. VIRTUALIZATION
   let vmScript = "";
   if (isLua) {
       try {
           const compiler = new VexileCompiler();
           vmScript = compiler.compile(processedCode);
       } catch (e: any) {
-          // [SECURITY FIX] Return an error message instead of leaking the source code
           const err = e.message ? e.message.replace(/"/g, "'") : "Unknown Error";
           vmScript = `error("Vexile Compiler Failed: ${err}")`; 
       }
@@ -116,7 +106,6 @@ export function obfuscateCode(code: string, engine: EngineType, preset: string):
       return `/* This file is protected with Vexile v1.0.0 (discord.gg/vexile) */ ${processedCode}`;
   }
 
-  // 3. WRAPPER SETUP
   const vReg = genVar(); 
   const vVM = genVar();
   const vOp = genVar();
@@ -134,11 +123,9 @@ export function obfuscateCode(code: string, engine: EngineType, preset: string):
   const strWait = hideString("wait", `${vReg}[${IDX_CHAR}]`);
   const strCheckIndex = hideString("CHECKINDEX", `${vReg}[${IDX_CHAR}]`);
   
-  // 4. CRASH LOGIC
   let crashLogic = `function() local function c() return c() end; return c() end`; 
   if (isTest) crashLogic = `function() end`;
 
-  // 5. VM METATABLE
   let vmMetatable = `
     setmetatable(${vVM}, {
       __index = function(t, k)
@@ -168,7 +155,6 @@ export function obfuscateCode(code: string, engine: EngineType, preset: string):
   
   if (isTest) vmMetatable = `setmetatable(${vVM}, { __index = function(t,k) return getfenv(0)[k] end, __newindex = function(t,k,v) getfenv(0)[k]=v end })`;
 
-  // 6. PARSER BOMB
   let parserBomb = "";
   if (preset === "High" || preset == "Medium") {
      const bombDepth = 200; 
@@ -185,7 +171,6 @@ export function obfuscateCode(code: string, engine: EngineType, preset: string):
   
   const watermark = `--[[ This file is protected with Vexile v1.0.0 (discord.gg/vexile) ]]`;
 
-  // 7. ASSEMBLY
   let rawScript = `
     (function()
       ${parserBomb}
