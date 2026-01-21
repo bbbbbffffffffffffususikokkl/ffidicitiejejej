@@ -24,32 +24,35 @@ function hideString(str: string, charFuncVar: string): string {
 }
 
 function getDeadCode(preset: string): string {
-  let intensity = 1200;
-  if (preset === "Medium") intensity = 1500;
-  if (preset === "High") intensity = 3000;
+  // We switched from "Loop Iterations" to "Code Blocks" to generate file size.
+  // 3000 blocks would be too massive (megabytes), so we use safe high numbers.
+  let blocksToGenerate = 20;
+  if (preset === "Medium") blocksToGenerate = 60;
+  if (preset === "High") blocksToGenerate = 150; // This will generate ~150 chunks of junk
 
   let junk = "";
-  
   const vTab = genVar();
-  const vIdx = genVar();
-  const vVal = genVar();
-  const vInner = genVar();
-  
   junk += `local ${vTab}={};`;
   
-  junk += `for ${vIdx}=${obfNum(1)},${obfNum(intensity)} do `;
-  junk += `local ${vVal}=${obfNum(Math.floor(Math.random() * 500))};`;
-  
-  junk += `for ${vInner}=1, ${obfNum(5)} do `;
-  junk += `${vTab}[${vIdx}*${vInner}]=${vVal}*${obfNum(2)};`;
-  junk += `${vTab}[${vVal}]=${vTab}[${vIdx}]+${obfNum(1)};`;
-  junk += `end; `;
+  // Loop in Typescript to create a massive string of unique Lua code
+  for (let i = 0; i < blocksToGenerate; i++) {
+    const vIdx = genVar();
+    const vVal = genVar();
+    const type = Math.floor(Math.random() * 3);
 
-  junk += `if ${vIdx}%${obfNum(3)}==${obfNum(0)} then `;
-  junk += `${vTab}[${vIdx}]=${vVal}+${obfNum(4)};`;
-  junk += `end; `;
-  
-  junk += `end;`;
+    // Randomize the type of junk to look messier
+    if (type === 0) {
+        // Chunk A: A small loop
+        junk += `for ${vIdx}=1,${obfNum(4)} do ${vTab}[${vIdx}]=${obfNum(i)}*${obfNum(2)} end; `;
+    } else if (type === 1) {
+        // Chunk B: Logic check
+        junk += `local ${vVal}=${obfNum(Math.floor(Math.random() * 500))}; `;
+        junk += `if ${vVal}>${obfNum(250)} then ${vTab}[${obfNum(i)}]=${vVal} else ${vTab}[${obfNum(i)}]=0 end; `;
+    } else {
+        // Chunk C: Direct math
+        junk += `${vTab}[${obfNum(i)}]=(${obfNum(i)}+${obfNum(1)})*${obfNum(3)}; `;
+    }
+  }
   
   return junk;
 }
@@ -63,11 +66,12 @@ function encryptString(str: string, key: number): string {
   }
   return result;
 }
-
 export function obfuscateCode(code: string, engine: EngineType, preset: string): string {
   const isLua = engine === "LuaU";
   const isTest = preset === "Test"; 
 
+  // ... [Existing string cleanup code] ...
+  
   let processedCode = code;
   if (isLua) {
     processedCode = processedCode
@@ -163,13 +167,14 @@ export function obfuscateCode(code: string, engine: EngineType, preset: string):
   `;
   if (isTest) vmMetatable = `setmetatable(${vVM}, { __index = function(t,k) return getfenv(0)[k] end, __newindex = function(t,k,v) getfenv(0)[k]=v end })`;
 
+  // These will now generate MASSIVE blocks of text due to the new loop
   const deadBlock1 = getDeadCode(preset);
   const deadBlock2 = getDeadCode(preset);
   const deadBlock3 = getDeadCode(preset);
   
   let parserBomb = "";
-  if (preset === "High") {
-     const bombDepth = 250; 
+  if (preset === "High" || preset == "Medium") {
+     const bombDepth = 300; // Increased depth slightly
      let bombStr = `0x${Math.floor(Math.random() * 10000).toString(16)}`;
 
      for (let i = 0; i < bombDepth; i++) {
