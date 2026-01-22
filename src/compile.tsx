@@ -164,7 +164,7 @@ export class VexileCompiler {
                 local OP = string.byte(${v.bytecode}, ${v.ip})
                 ${v.ip} = ${v.ip} + 1
 
-                elseif OP == ${Opcode.OP_NIL} then
+                if OP == ${Opcode.OP_NIL} then
     table.insert(${v.stack}, ${v.null})
 
                 elseif OP == ${Opcode.OP_LOADCONST} then
