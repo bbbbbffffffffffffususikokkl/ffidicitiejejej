@@ -2,17 +2,22 @@ import { VexileCompiler } from './compile';
 
 type EngineType = "LuaU" | "JavaScript (MCBE)";
 
+// --- [HELPER FUNCTIONS] ---
+
 function genVar(): string {
-  const hex = "0123456789ABCDEF";
-  let res = "_0x";
-  for (let i = 0; i < 3; i++) res += hex[Math.floor(Math.random() * hex.length)];
+  // Metamorphic variable names (Length 6-8)
+  const hex = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ";
+  let res = "";
+  const len = Math.floor(Math.random() * 3) + 6;
+  for (let i = 0; i < len; i++) res += hex[Math.floor(Math.random() * hex.length)];
   return res;
 }
 
 function obfNum(n: number): string {
-  const method = Math.floor(Math.random() * 3);
-  if (method === 0) return `0x${n.toString(16)}`; 
-  if (method === 1) { 
+  // Metamorphic numbers: 10 -> (5 + 5) or 0xA or (20 / 2)
+  const type = Math.floor(Math.random() * 3);
+  if (type === 0) return `0x${n.toString(16)}`; 
+  if (type === 1) { 
       const p1 = Math.floor(Math.random() * n);
       return `(${p1}+${n - p1})`; 
   }
@@ -20,6 +25,7 @@ function obfNum(n: number): string {
 }
 
 function hideString(str: string, charFuncVar: string): string {
+  // Encrypts "Hello" -> string.char(72, 101, ...)
   let args = [];
   for(let i=0; i<str.length; i++) args.push(obfNum(str.charCodeAt(i)));
   return `${charFuncVar}(${args.join(',')})`;
@@ -27,12 +33,12 @@ function hideString(str: string, charFuncVar: string): string {
 
 function cleanLuaU(code: string): string {
     return code
-        // Auto-fix common Roblox methods to safer indexing
+        // Safe replacements only
         .replace(/:\s*GetService\s*\(\s*(["'])([^"']+)\1\s*\)/g, '["$2"]')
-        .replace(/:\s*HttpGet\s*\(\s*(["'])([^"']+)\1\s*\)/g, '["$2"]') // [NEW] Handles HttpGet
-
-        .replace(/([a-zA-Z0-9_\.\[\]"']+)\s*\+=\s*([^;\r\n]+)/g, "$1 = $1 + ($2)")
-        .replace(/([a-zA-Z0-9_\.\[\]"']+)\s*\-=\s*([^;\r\n]+)/g, "$1 = $1 - ($2)")
+        .replace(/:\s*HttpGet\s*\(\s*(["'])([^"']+)\1\s*\)/g, '["$2"]')
+        
+        .replace(/([a-zA-Z0-9_\]])\s*\+=\s*([^;\r\n]+)/g, "$1 = $1 + ($2)")
+        .replace(/([a-zA-Z0-9_\]])\s*\-=\s*([^;\r\n]+)/g, "$1 = $1 - ($2)")
         .replace(/\bcontinue\b/g, " ")
         .replace(/export\s+type\s+[a-zA-Z0-9_]+\s*=.+$/gm, "") 
         .replace(/type\s+[a-zA-Z0-9_]+\s*=.+$/gm, "")
@@ -40,15 +46,15 @@ function cleanLuaU(code: string): string {
 }
 
 function getDeadCode(preset: string): string {
-  let blocksToGenerate = 500;
-  if (preset === "Medium") blocksToGenerate = 700;
-  if (preset === "High") blocksToGenerate = 1500; 
-
+  if (preset === "Test" || preset === "Fast") return "";
+  
+  // Generates randomized junk logic
+  let blocks = preset === "High" ? 30 : 10;
   let junk = "";
   const vTab = genVar();
   junk += `local ${vTab}={};`;
   
-  for (let i = 0; i < blocksToGenerate; i++) {
+  for (let i = 0; i < blocks; i++) {
     const vIdx = genVar();
     const type = Math.floor(Math.random() * 3);
     if (type === 0) junk += `for ${vIdx}=1,${obfNum(Math.floor(Math.random() * 5) + 1)} do ${vTab}[${vIdx}]=${obfNum(i)}*${obfNum(2)} end; `;
@@ -57,43 +63,24 @@ function getDeadCode(preset: string): string {
   return junk;
 }
 
+// --- [MAIN OBFUSCATOR] ---
+
 export function obfuscateCode(code: string, engine: EngineType, preset: string): string {
   const isLua = engine === "LuaU";
-  const isTest = preset === "Test"; 
+  if (!isLua) return "-- Vexile currently only supports LuaU.";
 
-  let processedCode = code;
-  if (isLua) {
-    processedCode = processedCode
+  // 1. Pre-Process
+  let processedCode = code
       .replace(/--\[\[(?! This file is protected with Vexile)[\s\S]*?\]\]/g, "")
-      .replace(/--(?![\[])(?!.*Vexile).*$/gm, ""); 
-    processedCode = cleanLuaU(processedCode);
-  } else {
-    processedCode = processedCode
-      .replace(/\/\*(?! This file is protected with Vexile)[\s\S]*?\*\//g, "") 
-      .replace(/\/\/(?!.*Vexile).*$/gm, ""); 
-  }
+      .replace(/--(?![\[])(?!.*Vexile).*$/gm, "");
+  
+  processedCode = cleanLuaU(processedCode);
   processedCode = processedCode.split('\n').map(line => line.trim()).filter(l => l.length > 0).join(' ');
 
-  const varNames = {
-      bytecode: genVar(), stack: genVar(), ip: genVar(),
-      env: genVar(), null: genVar(), k: genVar()
-  };
-
-  let vmScript = "";
-  if (isLua) {
-      try {
-          const compiler = new VexileCompiler();
-          vmScript = compiler.compile(processedCode, { varNames });
-      } catch (e: any) {
-          const err = e.message ? e.message.replace(/"/g, "'") : "Unknown Error";
-          vmScript = `error("Vexile Compiler Failed: ${err}")`; 
-      }
-  } else {
-      return `/* This file is protected with Vexile v1.0.0 (discord.gg/vexile) */ ${processedCode}`;
-  }
-
+  // 2. Generate Random Variables (Metamorphism)
   const vReg = genVar(); 
   const vVM = genVar();
+  const vOp = genVar(); // Not used directly in new VM, but good for junk
   const IDX_STRING = 1;
   const IDX_CHAR = 2;
   const IDX_DEBUG = 7;
@@ -102,49 +89,87 @@ export function obfuscateCode(code: string, engine: EngineType, preset: string):
   const IDX_CRASH = 12;
   const IDX_MAIN = 13;
 
+  // 3. Compile Code using Polymorphic Engine
+  const varNames = {
+      bytecode: genVar(),
+      stack: genVar(),
+      ip: genVar(),
+      env: genVar(),
+      null: genVar(),
+      k: genVar(),
+      ops: genVar()
+  };
+
+  let vmScript = "";
+  try {
+      const compiler = new VexileCompiler();
+      vmScript = compiler.compile(processedCode, { varNames });
+  } catch (e: any) {
+      return `error("Vexile Compiler Error: ${e.message ? e.message.replace(/"/g, "'") : "Unknown"}")`;
+  }
+
+  // 4. Security Modules
   const strWhat = hideString("what", `${vReg}[${IDX_CHAR}]`);
   const strC = hideString("C", `${vReg}[${IDX_CHAR}]`); 
   const strWait = hideString("wait", `${vReg}[${IDX_CHAR}]`);
-  const strCheckIndex = hideString("CHECKINDEX", `${vReg}[${IDX_CHAR}]`);
+  const strCheckIndex = hideString("CHECK_INDEX", `${vReg}[${IDX_CHAR}]`); // Trap key
   
   let crashLogic = `function() local function c() return c() end; return c() end`; 
-  if (isTest) crashLogic = `function() end`;
-
-  let vmMetatable = `
-    setmetatable(${vVM}, {
-      __index = function(t, k)
-        if k == "game" or k == "Enum" or k == "math" or k == "workspace" or k == "table" then
-            return getfenv(0)[k]
-        end
-        if k == ${obfNum(1)} then
-           if (getfenv and getfenv()[${strCheckIndex}]) then ${vReg}[${IDX_CRASH}]() end;
-           return ${obfNum(2)};
-        elseif k == ${obfNum(2)} then
-           if (${vReg}[${IDX_GETINFO}](${vReg}[${IDX_TASK}][${strWait}])[${strWhat}] ~= ${strC}) then ${vReg}[${IDX_CRASH}]() end;
-           return ${obfNum(0)};
-        end
-        return getfenv(0)[k];
-      end,
-      __newindex = function(t, k, v) getfenv(0)[k] = v; end,
-      __metatable = "Locked"
-    })
-  `;
-  if (isTest) vmMetatable = `setmetatable(${vVM}, { __index = function(t,k) return getfenv(0)[k] end, __newindex = function(t,k,v) getfenv(0)[k]=v end })`;
+  if (preset === "Test") crashLogic = `function() end`;
 
   let parserBomb = "";
-  if (preset === "High") {
-     const bombDepth = 200; 
-     parserBomb = `local ${genVar()}=0x${Math.floor(Math.random()*10000).toString(16)};`;
+  if (preset === "High" || preset === "Medium") {
+     const bombDepth = preset === "High" ? 300 : 200; 
+     let bombStr = `0x${Math.floor(Math.random() * 10000).toString(16)}`;
+     for (let i = 0; i < bombDepth; i++) {
+        if (Math.random() > 0.5) bombStr = `(${bombStr}+${obfNum(Math.floor(Math.random() * 100))})`;
+        else bombStr = `(${obfNum(Math.floor(Math.random() * 100))}+${bombStr})`;
+     }
+     parserBomb = `local ${genVar()}=${bombStr};`;
+  }
+
+  let vmMetatable = "";
+  if (preset !== "Test") {
+      vmMetatable = `
+        setmetatable(${vVM}, {
+          __index = function(t, k)
+            if k == "game" or k == "Enum" or k == "math" or k == "workspace" or k == "table" or k == "string" or k == "getfenv" then
+                return getfenv(0)[k]
+            end
+            
+            if k == ${obfNum(1)} then
+               if (getfenv and getfenv()[${strCheckIndex}]) then ${vReg}[${IDX_CRASH}]() end;
+               return ${obfNum(2)};
+            
+            elseif k == ${obfNum(2)} then
+               if (${vReg}[${IDX_GETINFO}](${vReg}[${IDX_TASK}][${strWait}])[${strWhat}] ~= ${strC}) then ${vReg}[${IDX_CRASH}]() end;
+               return ${obfNum(0)};
+            end
+
+            return getfenv(0)[k];
+          end,
+          
+          __newindex = function(t, k, v)
+            getfenv(0)[k] = v;
+          end,
+
+          __metatable = "Locked"
+        })
+      `;
+  } else {
+      vmMetatable = `setmetatable(${vVM}, { __index = function(t,k) return getfenv(0)[k] end })`;
   }
 
   const deadBlock1 = getDeadCode(preset);
   const deadBlock2 = getDeadCode(preset);
+  const deadBlock3 = getDeadCode(preset);
   
   const watermark = `--[[ This file is protected with Vexile v1.0.0 (discord.gg/vexile) ]]`;
 
   let rawScript = `
     (function()
       ${parserBomb}
+      
       local ${vReg} = {}
       ${vReg}[${IDX_STRING}] = string;
       ${vReg}[${IDX_CHAR}] = ${vReg}[${IDX_STRING}].char;
@@ -157,17 +182,28 @@ export function obfuscateCode(code: string, engine: EngineType, preset: string):
       local ${vVM} = {}
       ${vmMetatable}
       
-      ${vVM}[${obfNum(1)}] = ${vVM}[${obfNum(1)}]; 
+      local ${vOp} = ${obfNum(1)};
+      ${vOp} = ${vVM}[${vOp}]; 
+      ${vOp} = ${vVM}[${vOp}]; 
+
+      ${deadBlock2}
 
       ${vReg}[${IDX_MAIN}] = function()
          ${vmScript}
       end;
-      ${deadBlock2}
+
+      ${deadBlock3}
+
       setfenv(${vReg}[${IDX_MAIN}], ${vVM});
-      ${vReg}[${IDX_MAIN}]();
+      
+      local s, e = pcall(${vReg}[${IDX_MAIN}])
+      if not s then 
+      print("erroree")
+      end
+      
     end)()
   `;
 
   let minifiedScript = rawScript.replace(/\n/g, ' ').replace(/\s+/g, ' ').trim();
-  return `${watermark}\n${rawScript}`;
+  return `${watermark}\n${minifiedScript}`;
 }
