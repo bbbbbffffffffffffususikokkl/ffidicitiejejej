@@ -1,8 +1,7 @@
-import { useState } from 'react';
-import { Shield, Sword, Zap, Copy, Check, Download } from 'lucide-react'; // Added Download icon
+import { useState, useRef } from 'react';
+import { Shield, Sword, Zap, Copy, Check, Download, Upload } from 'lucide-react'; 
 import { obfuscateCode } from './obfuscate';
 
-// Preset Data Configuration
 const PRESETS = {
   Test: {
     icon: <Shield className="w-5 h-5 text-emerald-400" />,
@@ -40,15 +39,15 @@ export default function App() {
   const [outputCode, setOutputCode] = useState("");
   const [showResult, setShowResult] = useState(false);
   const [isCopied, setIsCopied] = useState(false);
+  
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Dynamic Placeholder based on Engine
   const placeholderText = engine === "LuaU" 
     ? 'print("Hello, World!")' 
     : 'console.log("Hello, World!")';
 
   const handleObfuscate = () => {
     if (!inputCode) return;
-    // Added a small delay to prevent UI freeze on large scripts (optional)
     setTimeout(() => {
         try {
             const result = obfuscateCode(inputCode, engine, preset);
@@ -66,7 +65,6 @@ export default function App() {
     setTimeout(() => setIsCopied(false), 2000);
   };
 
-  // [NEW] Download Handler
   const handleDownload = () => {
     if (!outputCode) return;
     const blob = new Blob([outputCode], { type: 'text/plain' });
@@ -80,10 +78,28 @@ export default function App() {
     URL.revokeObjectURL(url);
   };
 
+  const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const text = e.target?.result;
+      if (typeof text === 'string') {
+        setInputCode(text);
+        if (showResult) setShowResult(false);
+      }
+    };
+    reader.readAsText(file);
+  };
+
+  const triggerFileUpload = () => {
+    fileInputRef.current?.click();
+  };
+
   return (
     <div className="min-h-screen bg-neutral-950 text-neutral-200 p-6 flex flex-col items-center font-sans selection:bg-indigo-500/30">
       
-      {/* Header */}
       <div className="w-full max-w-3xl text-center mb-10 space-y-2">
         <h1 className="text-4xl font-bold tracking-tighter text-white">
           Vexile <span className="text-indigo-500">Obfuscator</span>
@@ -98,10 +114,7 @@ export default function App() {
 
       <div className="w-full max-w-3xl space-y-8">
         
-        {/* Controls Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          
-          {/* Engine Select */}
           <div className="space-y-2">
             <label className="text-xs font-bold uppercase tracking-wider text-neutral-500 ml-1">Select Engine</label>
             <div className="relative">
@@ -117,7 +130,6 @@ export default function App() {
             </div>
           </div>
 
-          {/* Preset Select */}
           <div className="space-y-2">
             <label className="text-xs font-bold uppercase tracking-wider text-neutral-500 ml-1">Protection Preset</label>
             <div className="relative">
@@ -136,7 +148,6 @@ export default function App() {
           </div>
         </div>
 
-        {/* Dynamic Description Card */}
         <div className="bg-neutral-900/50 border border-neutral-800 rounded-xl p-5 animate-in fade-in zoom-in duration-300">
           <div className="flex items-center gap-3 mb-3">
             {PRESETS[preset].icon}
@@ -161,9 +172,27 @@ export default function App() {
           </div>
         </div>
 
-        {/* Input Area */}
         <div className="space-y-2">
-          <label className="text-xs font-bold uppercase tracking-wider text-neutral-500 ml-1">Input Code</label>
+          <div className="flex items-center justify-between ml-1">
+             <label className="text-xs font-bold uppercase tracking-wider text-neutral-500">Input Code</label>
+             
+             <input 
+               type="file" 
+               ref={fileInputRef}
+               onChange={handleFileUpload}
+               className="hidden"
+               accept=".lua,.txt,.js"
+             />
+             
+             <button 
+                onClick={triggerFileUpload}
+                className="flex items-center gap-1.5 text-xs font-medium text-neutral-400 hover:text-indigo-400 transition-colors"
+             >
+                <Upload className="w-3 h-3" />
+                Upload File
+             </button>
+          </div>
+          
           <textarea
             value={inputCode}
             onChange={(e) => {
@@ -176,7 +205,6 @@ export default function App() {
           />
         </div>
 
-        {/* Action Button */}
         <button
           onClick={handleObfuscate}
           className="w-full py-4 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-xl transition-all active:scale-[0.99] shadow-lg shadow-indigo-900/20"
@@ -184,15 +212,12 @@ export default function App() {
           Obfuscate Code
         </button>
 
-        {/* Output Area - Conditionally Rendered */}
         {showResult && (
           <div className="space-y-2 animate-in slide-in-from-bottom-4 duration-500">
             <div className="flex items-center justify-between ml-1">
               <label className="text-xs font-bold uppercase tracking-wider text-emerald-500">Obfuscated Result</label>
               
-              {/* [NEW] Buttons Container */}
               <div className="flex items-center gap-4">
-                 {/* Download Button */}
                 <button 
                   onClick={handleDownload}
                   className="flex items-center gap-1.5 text-xs font-medium text-neutral-400 hover:text-indigo-400 transition-colors"
@@ -201,7 +226,6 @@ export default function App() {
                   Download File
                 </button>
 
-                {/* Copy Button */}
                 <button 
                   onClick={handleCopy}
                   className="flex items-center gap-1.5 text-xs font-medium text-neutral-400 hover:text-white transition-colors"
