@@ -57,99 +57,99 @@ export class VexileCompiler {
         return this.generateVM(bytecodeStr, constTableLua, options.varNames);
     }
 
-    private compileStatement(node: any) {
-        if (node.type === 'CallStatement') {
-            this.compileExpression(node.expression);
-            this.emit(Opcode.OP_CALL, 0, 0);
-        } 
-        else if (node.type === 'LocalStatement' || node.type === 'AssignmentStatement') {
-            if (node.init && node.init.length > 0) {
-                node.init.forEach((expr: any) => this.compileExpression(expr));
-            } else {
-                for (let i = 0; i < node.variables.length; i++) {
-                    this.emit(Opcode.OP_NIL);
-                }
+   private compileStatement(node: any) {
+    if (node.type === 'CallStatement') {
+        this.compileExpression(node.expression);
+    } 
+    else if (node.type === 'LocalStatement' || node.type === 'AssignmentStatement') {
+        if (node.init && node.init.length > 0) {
+            node.init.forEach((expr: any) => this.compileExpression(expr));
+        } else {
+            for (let i = 0; i < node.variables.length; i++) {
+                this.emit(Opcode.OP_NIL);
             }
-            
-            for (let i = node.variables.length - 1; i >= 0; i--) {
-                const variable = node.variables[i];
-                if (variable.type === 'Identifier') {
-                    const idx = this.addConstant(variable.name);
-                    this.emit(Opcode.OP_SETGLOBAL, 0, idx + 1);
-                } 
-                else if (variable.type === 'MemberExpression') {
-                    this.compileExpression(variable.base);
-                    
-                    if (variable.indexer === '.') {
-                        const idx = this.addConstant(variable.identifier.name);
-                        this.emit(Opcode.OP_LOADCONST, 1, idx + 1);
-                    } else {
-                        this.compileExpression(variable.identifier);
-                    }
-                    
-                    this.emit(Opcode.OP_SETTABLE);
+        }
+        
+        for (let i = node.variables.length - 1; i >= 0; i--) {
+            const variable = node.variables[i];
+            if (variable.type === 'Identifier') {
+                const idx = this.addConstant(variable.name);
+                this.emit(Opcode.OP_SETGLOBAL, 0, idx + 1);
+            } 
+            else if (variable.type === 'MemberExpression') {
+                this.compileExpression(variable.base);
+                
+                if (variable.indexer === '.') {
+                    const idx = this.addConstant(variable.identifier.name);
+                    this.emit(Opcode.OP_LOADCONST, 1, idx + 1);
+                } else {
+                    this.compileExpression(variable.identifier);
                 }
+                
+                this.emit(Opcode.OP_SETTABLE);
             }
         }
     }
+}
 
-    private compileExpression(node: any) {
-        if (node.type === 'BinaryExpression' || node.type === 'LogicalExpression') {
-            this.compileExpression(node.left);
-            this.compileExpression(node.right);
-            if (node.operator === '+') this.emit(Opcode.OP_ADD);
-            else if (node.operator === '-') this.emit(Opcode.OP_SUB);
-            else if (node.operator === '*') this.emit(Opcode.OP_MUL);
-            else if (node.operator === '/') this.emit(Opcode.OP_DIV);
-            else if (node.operator === '..') this.emit(Opcode.OP_CONCAT);
-            else if (node.operator === 'or') this.emit(Opcode.OP_OR);
-            else if (node.operator === 'and') this.emit(Opcode.OP_AND);
-        }
-        else if (node.type === 'CallExpression') {
-            if (node.base.type === 'CallExpression') {
-                this.compileExpression(node.base);
-                node.arguments.forEach((arg: any) => this.compileExpression(arg));
-                this.emit(Opcode.OP_CALL, 0, node.arguments.length);
-            }
-            else if (node.identifier) { 
-                this.compileExpression(node.base); 
-                const idx = this.addConstant(node.identifier.name);
-                this.emit(Opcode.OP_SELF, 0, idx + 1);
-                node.arguments.forEach((arg: any) => this.compileExpression(arg));
-                this.emit(Opcode.OP_CALL, 0, node.arguments.length + 1);
-            } else { 
-                this.compileExpression(node.base);
-                node.arguments.forEach((arg: any) => this.compileExpression(arg));
-                this.emit(Opcode.OP_CALL, 0, node.arguments.length);
-            }
-        }
-        else if (node.type === 'MemberExpression') {
+
+   private compileExpression(node: any) {
+    if (node.type === 'BinaryExpression' || node.type === 'LogicalExpression') {
+        this.compileExpression(node.left);
+        this.compileExpression(node.right);
+        if (node.operator === '+') this.emit(Opcode.OP_ADD);
+        else if (node.operator === '-') this.emit(Opcode.OP_SUB);
+        else if (node.operator === '*') this.emit(Opcode.OP_MUL);
+        else if (node.operator === '/') this.emit(Opcode.OP_DIV);
+        else if (node.operator === '..') this.emit(Opcode.OP_CONCAT);
+        else if (node.operator === 'or') this.emit(Opcode.OP_OR);
+        else if (node.operator === 'and') this.emit(Opcode.OP_AND);
+    }
+    else if (node.type === 'CallExpression') {
+        if (node.base.type === 'CallExpression') {
             this.compileExpression(node.base);
-            if (node.indexer === '.') {
-                const idx = this.addConstant(node.identifier.name);
-                this.emit(Opcode.OP_LOADCONST, 1, idx + 1); 
-            } else {
-                this.compileExpression(node.identifier);
-            }
-            this.emit(Opcode.OP_GETTABLE);
+            node.arguments.forEach((arg: any) => this.compileExpression(arg));
+            this.emit(Opcode.OP_CALL, 0, node.arguments.length);
         }
-        else if (node.type === 'Identifier') {
-            const idx = this.addConstant(node.name);
-            this.emit(Opcode.OP_GETGLOBAL, 0, idx + 1);
-        }
-        else if (node.type === 'StringLiteral') {
-            const clean = node.raw.replace(/^["']|["']$/g, ""); 
-            const idx = this.addConstant(clean);
-            this.emit(Opcode.OP_LOADCONST, 1, idx + 1);
-        }
-        else if (node.type === 'NumericLiteral') {
-            const idx = this.addConstant(node.value);
-            this.emit(Opcode.OP_LOADCONST, 1, idx + 1);
-        }
-        else if (node.type === 'NilLiteral') {
-            this.emit(Opcode.OP_NIL);
+        else if (node.identifier) { 
+            this.compileExpression(node.base); 
+            const idx = this.addConstant(node.identifier.name);
+            this.emit(Opcode.OP_SELF, 0, idx + 1);
+            node.arguments.forEach((arg: any) => this.compileExpression(arg));
+            this.emit(Opcode.OP_CALL, 0, node.arguments.length + 1);
+        } else { 
+            this.compileExpression(node.base);
+            node.arguments.forEach((arg: any) => this.compileExpression(arg));
+            this.emit(Opcode.OP_CALL, 0, node.arguments.length);
         }
     }
+    else if (node.type === 'MemberExpression') {
+        this.compileExpression(node.base);
+        if (node.indexer === '.') {
+            const idx = this.addConstant(node.identifier.name);
+            this.emit(Opcode.OP_LOADCONST, 1, idx + 1); 
+        } else {
+            this.compileExpression(node.identifier);
+        }
+        this.emit(Opcode.OP_GETTABLE);
+    }
+    else if (node.type === 'Identifier') {
+        const idx = this.addConstant(node.name);
+        this.emit(Opcode.OP_GETGLOBAL, 0, idx + 1);
+    }
+    else if (node.type === 'StringLiteral') {
+        const clean = node.raw.replace(/^["']|["']$/g, ""); 
+        const idx = this.addConstant(clean);
+        this.emit(Opcode.OP_LOADCONST, 1, idx + 1);
+    }
+    else if (node.type === 'NumericLiteral') {
+        const idx = this.addConstant(node.value);
+        this.emit(Opcode.OP_LOADCONST, 1, idx + 1);
+    }
+    else if (node.type === 'NilLiteral') {
+        this.emit(Opcode.OP_NIL);
+    }
+}
 
     private generateVM(bytecode: string, constTable: string, v: any): string {
         return `
@@ -164,8 +164,8 @@ export class VexileCompiler {
                 local OP = string.byte(${v.bytecode}, ${v.ip})
                 ${v.ip} = ${v.ip} + 1
 
-                if OP == ${Opcode.OP_NIL} then
-                    table.insert(${v.stack}, ${v.null})
+                elseif OP == ${Opcode.OP_NIL} then
+    table.insert(${v.stack}, ${v.null})
 
                 elseif OP == ${Opcode.OP_LOADCONST} then
                     local trash = string.byte(${v.bytecode}, ${v.ip}); ${v.ip}=${v.ip}+1
@@ -217,30 +217,30 @@ export class VexileCompiler {
                     table.insert(${v.stack}, obj)
 
                 elseif OP == ${Opcode.OP_CALL} then
-                    local trash = string.byte(${v.bytecode}, ${v.ip}); ${v.ip}=${v.ip}+1
-                    local argCount = string.byte(${v.bytecode}, ${v.ip}); ${v.ip}=${v.ip}+1
-                    local args = {}
-                    for i = argCount, 1, -1 do 
-                        local val = table.remove(${v.stack})
-                        if val == ${v.null} then val = nil end
-                        args[i] = val 
-                    end
-                    local func = table.remove(${v.stack})
-                    if func == ${v.null} then func = nil end
-                    if func then
-                        local results = {func(unpack(args, 1, argCount))}
-                        if #results == 0 then
-                            table.insert(${v.stack}, ${v.null})
-                        else
-                            for i = 1, #results do
-                                local res = results[i]
-                                if res == nil then res = ${v.null} end
-                                table.insert(${v.stack}, res)
-                            end
-                        end
-                    else
-                        table.insert(${v.stack}, ${v.null})
-                    end
+    local trash = string.byte(${v.bytecode}, ${v.ip}); ${v.ip}=${v.ip}+1
+    local argCount = string.byte(${v.bytecode}, ${v.ip}); ${v.ip}=${v.ip}+1
+    local args = {}
+    for i = argCount, 1, -1 do 
+        local val = table.remove(${v.stack})
+        if val == ${v.null} then val = nil end
+        args[i] = val 
+    end
+    local func = table.remove(${v.stack})
+    if func == ${v.null} then func = nil end
+    if func then
+        local results = {pcall(func, unpack(args, 1, argCount))}
+        local success = table.remove(results, 1)
+        if success and #results > 0 then
+            for _, res in ipairs(results) do
+                if res == nil then res = ${v.null} end
+                table.insert(${v.stack}, res)
+            end
+        else
+            table.insert(${v.stack}, ${v.null})
+        end
+    else
+        table.insert(${v.stack}, ${v.null})
+    end
                 
                 elseif OP == ${Opcode.OP_ADD} then
                     local b = table.remove(${v.stack}); local a = table.remove(${v.stack})
