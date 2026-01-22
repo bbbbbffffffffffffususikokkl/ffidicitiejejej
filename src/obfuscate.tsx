@@ -27,10 +27,9 @@ function hideString(str: string, charFuncVar: string): string {
 
 function cleanLuaU(code: string): string {
     return code
-        // Convert GetService to Index (Safe Fix)
-        .replace(/:\s*GetService\s*\(\s*(["'])([^"']+)\1\s*\)/g, '["$2"]')
-
-        // Remove Type Definitions
+        // [FIXED] Removed the GetService auto-replacer to rely on the safer VM OP_SELF
+        
+        // Remove Type Definitions (safe version)
         .replace(/([a-zA-Z0-9_]+):\s*[a-zA-Z0-9_\.]+(?=[,\)])/g, "$1") 
         .replace(/([a-zA-Z0-9_]+):\s*[a-zA-Z0-9_\.]+(?=\s*=)/g, "$1")
         
@@ -204,5 +203,5 @@ export function obfuscateCode(code: string, engine: EngineType, preset: string):
   `;
 
   let minifiedScript = rawScript.replace(/\n/g, ' ').replace(/\s+/g, ' ').trim();
-  return `${watermark}\n${minifiedScript}`;
+  return `${watermark}\n${rawScript}`;
 }

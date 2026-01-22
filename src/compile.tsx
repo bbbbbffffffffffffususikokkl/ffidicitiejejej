@@ -47,13 +47,11 @@ export class VexileCompiler {
 
         this.emit(Opcode.OP_EXIT);
 
-        // Serialize Bytecode
         let bytecodeStr = "";
         this.instructions.forEach(byte => {
             bytecodeStr += "\\" + (byte % 256).toString();
         });
 
-        // Generate Constant Table
         let constTableLua = "local K = {}\n";
         this.constants.forEach((c, i) => {
             const val = typeof c === 'string' ? `"${c}"` : c;
@@ -69,7 +67,6 @@ export class VexileCompiler {
         } 
         else if (node.type === 'LocalStatement' || node.type === 'AssignmentStatement') {
             node.init.forEach((expr: any) => this.compileExpression(expr));
-            
             for (let i = node.variables.length - 1; i >= 0; i--) {
                 const variable = node.variables[i];
                 if (variable.type === 'Identifier') {
