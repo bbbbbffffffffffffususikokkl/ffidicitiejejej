@@ -27,22 +27,23 @@ function hideString(str: string, charFuncVar: string): string {
 
 function cleanLuaU(code: string): string {
     return code
-        // [FIXED] Removed the GetService auto-replacer to rely on the safer VM OP_SELF
+        // [SAFETY FIX] Removed the Type Definition cleaner (: string)
+        // because it destroys URLs (https://) and table keys.
         
-        // Remove Type Definitions (safe version)
-        .replace(/([a-zA-Z0-9_]+):\s*[a-zA-Z0-9_\.]+(?=[,\)])/g, "$1") 
-        .replace(/([a-zA-Z0-9_]+):\s*[a-zA-Z0-9_\.]+(?=\s*=)/g, "$1")
-        
-        // Fix Compound Operators
+        // 1. Fix Compound Operators (+=, -=, *=, /=)
+        // This is safe to keep.
         .replace(/([a-zA-Z0-9_\.\[\]"']+)\s*\+=\s*([^;\r\n]+)/g, "$1 = $1 + ($2)")
         .replace(/([a-zA-Z0-9_\.\[\]"']+)\s*\-=\s*([^;\r\n]+)/g, "$1 = $1 - ($2)")
         .replace(/([a-zA-Z0-9_\.\[\]"']+)\s*\*\=\s*([^;\r\n]+)/g, "$1 = $1 * ($2)")
         .replace(/([a-zA-Z0-9_\.\[\]"']+)\s*\/\=\s*([^;\r\n]+)/g, "$1 = $1 / ($2)")
         
-        // Remove continue/types
+        // 2. Remove 'continue'
         .replace(/\bcontinue\b/g, " ")
+        
+        // 3. Remove export/type (Safe because it requires 'type' keyword)
         .replace(/export\s+type\s+[a-zA-Z0-9_]+\s*=.+$/gm, "") 
         .replace(/type\s+[a-zA-Z0-9_]+\s*=.+$/gm, "")
+        
         .replace(/^\s*[\r\n]/gm, "");
 }
 
@@ -203,5 +204,5 @@ export function obfuscateCode(code: string, engine: EngineType, preset: string):
   `;
 
   let minifiedScript = rawScript.replace(/\n/g, ' ').replace(/\s+/g, ' ').trim();
-  return `${watermark}\n${rawScript}`;
+  return `${watermark}\n${minifiedScript}`;
 }
