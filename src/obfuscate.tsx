@@ -27,6 +27,7 @@ function hideString(str: string, charFuncVar: string): string {
 
 function cleanLuaU(code: string): string {
     return code
+        // [FIX] Convert GetService to Index to safely avoid : vs . issues
         .replace(/:\s*GetService\s*\(\s*(["'])([^"']+)\1\s*\)/g, '["$2"]')
         .replace(/([a-zA-Z0-9_\.\[\]"']+)\s*\+=\s*([^;\r\n]+)/g, "$1 = $1 + ($2)")
         .replace(/([a-zA-Z0-9_\.\[\]"']+)\s*\-=\s*([^;\r\n]+)/g, "$1 = $1 - ($2)")
