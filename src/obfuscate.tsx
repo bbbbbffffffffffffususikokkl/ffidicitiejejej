@@ -27,8 +27,10 @@ function hideString(str: string, charFuncVar: string): string {
 
 function cleanLuaU(code: string): string {
     return code
-        // Safe Replacements Only
+        // Auto-fix common Roblox methods to safer indexing
         .replace(/:\s*GetService\s*\(\s*(["'])([^"']+)\1\s*\)/g, '["$2"]')
+        .replace(/:\s*HttpGet\s*\(\s*(["'])([^"']+)\1\s*\)/g, '["$2"]') // [NEW] Handles HttpGet
+
         .replace(/([a-zA-Z0-9_\.\[\]"']+)\s*\+=\s*([^;\r\n]+)/g, "$1 = $1 + ($2)")
         .replace(/([a-zA-Z0-9_\.\[\]"']+)\s*\-=\s*([^;\r\n]+)/g, "$1 = $1 - ($2)")
         .replace(/\bcontinue\b/g, " ")
@@ -167,5 +169,5 @@ export function obfuscateCode(code: string, engine: EngineType, preset: string):
   `;
 
   let minifiedScript = rawScript.replace(/\n/g, ' ').replace(/\s+/g, ' ').trim();
-  return `${watermark}\n${rawScript}`;
+  return `${watermark}\n${minifiedScript}`;
 }

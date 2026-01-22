@@ -24,16 +24,13 @@ export class VexileCompiler {
         return this.constants.length - 1;
     }
 
-    // Helper to push 16-bit integers (2 bytes)
     private emit16(num: number) {
-        this.instructions.push((num >> 8) & 0xFF); // High byte
-        this.instructions.push(num & 0xFF);        // Low byte
+        this.instructions.push((num >> 8) & 0xFF); 
+        this.instructions.push(num & 0xFF);        
     }
 
     private emit(op: Opcode, ...args: number[]) {
         this.instructions.push(op);
-        // We don't push args directly here anymore for constants/counts, 
-        // we handle them manually in compile methods to ensure 16-bit safety.
     }
 
     public compile(sourceCode: string, options: CompileOptions): string {
@@ -46,10 +43,8 @@ export class VexileCompiler {
         }
         this.emit(Opcode.OP_EXIT);
 
-        // 1. Generate Table-Based Bytecode (Safe from escape corruption)
         const bytecodeTable = `{${this.instructions.join(',')}}`;
 
-        // 2. Encrypt Constants
         let constTableLua = `local ${options.varNames.k} = {}\n`;
         this.constants.forEach((c, i) => {
             if (typeof c === 'string') {
@@ -151,7 +146,7 @@ export class VexileCompiler {
             local ${v.stack} = {}
             local ${v.env} = getfenv()
             local ${v.null} = {} 
-            
+
             local function readInt16()
                 local high = ${v.bytecode}[${v.ip}]; ${v.ip} = ${v.ip} + 1
                 local low = ${v.bytecode}[${v.ip}]; ${v.ip} = ${v.ip} + 1
@@ -185,11 +180,8 @@ export class VexileCompiler {
                     local obj = table.remove(${v.stack})
                     if key == ${v.null} then key = nil end
                     if obj == ${v.null} then obj = nil end
-                    
                     local val = nil
-                    if obj and key ~= nil then 
-                        val = obj[key] 
-                    end
+                    if obj and key ~= nil then val = obj[key] end
                     if val == nil then val = ${v.null} end
                     table.insert(${v.stack}, val)
 
@@ -207,7 +199,11 @@ export class VexileCompiler {
                     if obj == ${v.null} then obj = nil end
                     
                     local func = nil
-                    if obj then func = obj[${v.k}[kIdx]] end
+                    local methodName = ${v.k}[kIdx]
+                    
+                    if func == nil and ${v.env}[methodName] then
+                       func = ${v.env}[methodName]
+                    end
                     
                     if func == nil then func = ${v.null} end
                     if obj == nil then obj = ${v.null} end
@@ -223,7 +219,6 @@ export class VexileCompiler {
                         if val == ${v.null} then val = nil end
                         args[i] = val 
                     end
-                    
                     local func = table.remove(${v.stack})
                     if func == ${v.null} then func = nil end
 
