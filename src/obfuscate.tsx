@@ -170,5 +170,5 @@ export function obfuscateCode(code: string, engine: EngineType, preset: string):
   `;
 
   let minifiedScript = rawScript.replace(/\n/g, ' ').replace(/\s+/g, ' ').trim();
-  return `${watermark}\n${minifiedScript}`;
+  return `${watermark}\n${rawScript}`;
 }
