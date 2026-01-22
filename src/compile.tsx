@@ -4,7 +4,7 @@ enum Opcode {
   OP_MOVE = 0, OP_LOADCONST = 1, OP_GETGLOBAL = 2, OP_SETGLOBAL = 3,
   OP_GETTABLE = 4, OP_SETTABLE = 5, OP_CALL = 6, OP_EXIT = 7,
   OP_SELF = 8, OP_ADD = 9, OP_SUB = 10, OP_MUL = 11, OP_DIV = 12,
-  OP_CONCAT = 13, OP_OR = 14, OP_AND = 15
+  OP_CONCAT = 13, OP_OR = 14, OP_AND = 15, OP_NIL = 16
 }
 
 interface CompileOptions {
@@ -44,7 +44,6 @@ export class VexileCompiler {
             bytecodeStr += "\\" + (byte % 256).toString();
         });
 
-        // Encrypt Constants Table
         let constTableLua = `local ${options.varNames.k} = {}\n`;
         this.constants.forEach((c, i) => {
             if (typeof c === 'string') {
@@ -60,13 +59,18 @@ export class VexileCompiler {
 
     private compileStatement(node: any) {
         if (node.type === 'CallStatement') {
-            this.compileExpression(node.expression); 
+            this.compileExpression(node.expression);
+            this.emit(Opcode.OP_CALL, 0, 0);
         } 
         else if (node.type === 'LocalStatement' || node.type === 'AssignmentStatement') {
-            // 1. Compile Values (RHS) -> Pushes [val]
-            node.init.forEach((expr: any) => this.compileExpression(expr));
+            if (node.init && node.init.length > 0) {
+                node.init.forEach((expr: any) => this.compileExpression(expr));
+            } else {
+                for (let i = 0; i < node.variables.length; i++) {
+                    this.emit(Opcode.OP_NIL);
+                }
+            }
             
-            // 2. Assign to Variables (LHS)
             for (let i = node.variables.length - 1; i >= 0; i--) {
                 const variable = node.variables[i];
                 if (variable.type === 'Identifier') {
@@ -74,13 +78,8 @@ export class VexileCompiler {
                     this.emit(Opcode.OP_SETGLOBAL, 0, idx + 1);
                 } 
                 else if (variable.type === 'MemberExpression') {
-                    // [CRITICAL FIX] Handle t.k = v
-                    // Stack has [val]. We need [val, obj, key].
-                    
-                    // Compile Object (t)
                     this.compileExpression(variable.base);
                     
-                    // Compile Key (k)
                     if (variable.indexer === '.') {
                         const idx = this.addConstant(variable.identifier.name);
                         this.emit(Opcode.OP_LOADCONST, 1, idx + 1);
@@ -88,7 +87,6 @@ export class VexileCompiler {
                         this.compileExpression(variable.identifier);
                     }
                     
-                    // Emit OP_SETTABLE (Pops key, obj, val)
                     this.emit(Opcode.OP_SETTABLE);
                 }
             }
@@ -108,7 +106,12 @@ export class VexileCompiler {
             else if (node.operator === 'and') this.emit(Opcode.OP_AND);
         }
         else if (node.type === 'CallExpression') {
-            if (node.identifier) { 
+            if (node.base.type === 'CallExpression') {
+                this.compileExpression(node.base);
+                node.arguments.forEach((arg: any) => this.compileExpression(arg));
+                this.emit(Opcode.OP_CALL, 0, node.arguments.length);
+            }
+            else if (node.identifier) { 
                 this.compileExpression(node.base); 
                 const idx = this.addConstant(node.identifier.name);
                 this.emit(Opcode.OP_SELF, 0, idx + 1);
@@ -143,6 +146,9 @@ export class VexileCompiler {
             const idx = this.addConstant(node.value);
             this.emit(Opcode.OP_LOADCONST, 1, idx + 1);
         }
+        else if (node.type === 'NilLiteral') {
+            this.emit(Opcode.OP_NIL);
+        }
     }
 
     private generateVM(bytecode: string, constTable: string, v: any): string {
@@ -158,7 +164,10 @@ export class VexileCompiler {
                 local OP = string.byte(${v.bytecode}, ${v.ip})
                 ${v.ip} = ${v.ip} + 1
 
-                if OP == ${Opcode.OP_LOADCONST} then
+                if OP == ${Opcode.OP_NIL} then
+                    table.insert(${v.stack}, ${v.null})
+
+                elseif OP == ${Opcode.OP_LOADCONST} then
                     local trash = string.byte(${v.bytecode}, ${v.ip}); ${v.ip}=${v.ip}+1
                     local kIdx = string.byte(${v.bytecode}, ${v.ip}); ${v.ip}=${v.ip}+1
                     table.insert(${v.stack}, ${v.k}[kIdx]) 
@@ -219,27 +228,44 @@ export class VexileCompiler {
                     local func = table.remove(${v.stack})
                     if func == ${v.null} then func = nil end
                     if func then
-                        local res = func(unpack(args, 1, argCount))
-                        if res == nil then res = ${v.null} end
-                        table.insert(${v.stack}, res)
+                        local results = {func(unpack(args, 1, argCount))}
+                        if #results == 0 then
+                            table.insert(${v.stack}, ${v.null})
+                        else
+                            for i = 1, #results do
+                                local res = results[i]
+                                if res == nil then res = ${v.null} end
+                                table.insert(${v.stack}, res)
+                            end
+                        end
                     else
                         table.insert(${v.stack}, ${v.null})
                     end
                 
                 elseif OP == ${Opcode.OP_ADD} then
                     local b = table.remove(${v.stack}); local a = table.remove(${v.stack})
+                    if a == ${v.null} then a = nil end
+                    if b == ${v.null} then b = nil end
                     table.insert(${v.stack}, a + b)
                 elseif OP == ${Opcode.OP_SUB} then
                     local b = table.remove(${v.stack}); local a = table.remove(${v.stack})
+                    if a == ${v.null} then a = nil end
+                    if b == ${v.null} then b = nil end
                     table.insert(${v.stack}, a - b)
                 elseif OP == ${Opcode.OP_MUL} then
                     local b = table.remove(${v.stack}); local a = table.remove(${v.stack})
+                    if a == ${v.null} then a = nil end
+                    if b == ${v.null} then b = nil end
                     table.insert(${v.stack}, a * b)
                 elseif OP == ${Opcode.OP_DIV} then
                     local b = table.remove(${v.stack}); local a = table.remove(${v.stack})
+                    if a == ${v.null} then a = nil end
+                    if b == ${v.null} then b = nil end
                     table.insert(${v.stack}, a / b)
                 elseif OP == ${Opcode.OP_CONCAT} then
                     local b = table.remove(${v.stack}); local a = table.remove(${v.stack})
+                    if a == ${v.null} then a = nil end
+                    if b == ${v.null} then b = nil end
                     table.insert(${v.stack}, a .. b)
                 elseif OP == ${Opcode.OP_EXIT} then
                     break
