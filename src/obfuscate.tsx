@@ -30,8 +30,6 @@ function cleanLuaU(code: string): string {
         .replace(/:\s*GetService\s*\(\s*(["'])([^"']+)\1\s*\)/g, '["$2"]')
         .replace(/([a-zA-Z0-9_\.\[\]"']+)\s*\+=\s*([^;\r\n]+)/g, "$1 = $1 + ($2)")
         .replace(/([a-zA-Z0-9_\.\[\]"']+)\s*\-=\s*([^;\r\n]+)/g, "$1 = $1 - ($2)")
-        .replace(/([a-zA-Z0-9_\.\[\]"']+)\s*\*\=\s*([^;\r\n]+)/g, "$1 = $1 * ($2)")
-        .replace(/([a-zA-Z0-9_\.\[\]"']+)\s*\/\=\s*([^;\r\n]+)/g, "$1 = $1 / ($2)")
         .replace(/\bcontinue\b/g, " ")
         .replace(/export\s+type\s+[a-zA-Z0-9_]+\s*=.+$/gm, "") 
         .replace(/type\s+[a-zA-Z0-9_]+\s*=.+$/gm, "")
@@ -49,10 +47,8 @@ function getDeadCode(preset: string): string {
   
   for (let i = 0; i < blocksToGenerate; i++) {
     const vIdx = genVar();
-    const vVal = genVar();
     const type = Math.floor(Math.random() * 3);
     if (type === 0) junk += `for ${vIdx}=1,${obfNum(Math.floor(Math.random() * 5) + 1)} do ${vTab}[${vIdx}]=${obfNum(i)}*${obfNum(2)} end; `;
-    else if (type === 1) junk += `local ${vVal}=${obfNum(Math.floor(Math.random() * 500))}; if ${vVal}>${obfNum(250)} then ${vTab}[${obfNum(i)}]=${vVal} else ${vTab}[${obfNum(i)}]=0 end; `;
     else junk += `${vTab}[${obfNum(i)}]=(${obfNum(i)}+${obfNum(1)})*${obfNum(3)}; `;
   }
   return junk;
@@ -75,7 +71,6 @@ export function obfuscateCode(code: string, engine: EngineType, preset: string):
   }
   processedCode = processedCode.split('\n').map(line => line.trim()).filter(l => l.length > 0).join(' ');
 
-  // Generate Random Variable Names for the VM
   const varNames = {
       bytecode: genVar(),
       stack: genVar(),
@@ -89,7 +84,6 @@ export function obfuscateCode(code: string, engine: EngineType, preset: string):
   if (isLua) {
       try {
           const compiler = new VexileCompiler();
-          // Pass random names to compiler
           vmScript = compiler.compile(processedCode, { varNames });
       } catch (e: any) {
           const err = e.message ? e.message.replace(/"/g, "'") : "Unknown Error";
@@ -101,7 +95,6 @@ export function obfuscateCode(code: string, engine: EngineType, preset: string):
 
   const vReg = genVar(); 
   const vVM = genVar();
-  const vOp = genVar();
   const IDX_STRING = 1;
   const IDX_CHAR = 2;
   const IDX_DEBUG = 7;
@@ -140,14 +133,9 @@ export function obfuscateCode(code: string, engine: EngineType, preset: string):
   if (isTest) vmMetatable = `setmetatable(${vVM}, { __index = function(t,k) return getfenv(0)[k] end, __newindex = function(t,k,v) getfenv(0)[k]=v end })`;
 
   let parserBomb = "";
-  if (preset === "High" || preset == "Medium") {
+  if (preset === "High") {
      const bombDepth = 200; 
-     let bombStr = `0x${Math.floor(Math.random() * 10000).toString(16)}`;
-     for (let i = 0; i < bombDepth; i++) {
-        if (Math.random() > 0.5) bombStr = `(${bombStr}+${obfNum(Math.floor(Math.random() * 100))})`;
-        else bombStr = `(${obfNum(Math.floor(Math.random() * 100))}+${bombStr})`;
-     }
-     parserBomb = `local ${genVar()}=${bombStr};`;
+     parserBomb = `local ${genVar()}=0x${Math.floor(Math.random()*10000).toString(16)};`;
   }
 
   const deadBlock1 = getDeadCode(preset);
@@ -170,9 +158,7 @@ export function obfuscateCode(code: string, engine: EngineType, preset: string):
       local ${vVM} = {}
       ${vmMetatable}
       
-      local ${vOp} = ${obfNum(1)};
-      ${vOp} = ${vVM}[${vOp}]; 
-      ${vOp} = ${vVM}[${vOp}]; 
+      ${vVM}[${obfNum(1)}] = ${vVM}[${obfNum(1)}]; 
 
       ${vReg}[${IDX_MAIN}] = function()
          ${vmScript}
