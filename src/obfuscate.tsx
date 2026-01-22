@@ -40,9 +40,9 @@ function cleanLuaU(code: string): string {
 }
 
 function getDeadCode(preset: string): string {
-  let blocksToGenerate = 20; 
-  if (preset === "Medium") blocksToGenerate = 100;
-  if (preset === "High") blocksToGenerate = 300; 
+  let blocksToGenerate = 500;
+  if (preset === "Medium") blocksToGenerate = 700;
+  if (preset === "High") blocksToGenerate = 1500; 
 
   let junk = "";
   const vTab = genVar();
@@ -169,5 +169,5 @@ export function obfuscateCode(code: string, engine: EngineType, preset: string):
   `;
 
   let minifiedScript = rawScript.replace(/\n/g, ' ').replace(/\s+/g, ' ').trim();
-  return `${watermark}\n${minifiedScript}`;
+  return `${watermark}\n${rawScript}`;
 }
