@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Shield, Sword, Zap, Copy, Check } from 'lucide-react'; // Ensure you install lucide-react
+import { Shield, Sword, Zap, Copy, Check, Download } from 'lucide-react'; // Added Download icon
 import { obfuscateCode } from './obfuscate';
 
 // Preset Data Configuration
@@ -46,21 +46,38 @@ export default function App() {
     ? 'print("Hello, World!")' 
     : 'console.log("Hello, World!")';
 
-    const handleObfuscate = () => {
+  const handleObfuscate = () => {
     if (!inputCode) return;
-    const result = obfuscateCode(inputCode, engine, preset);
-
-    //setTimeout(() => {
-      setOutputCode(result); 
-      setShowResult(true);
-   //}, 600); 
+    // Added a small delay to prevent UI freeze on large scripts (optional)
+    setTimeout(() => {
+        try {
+            const result = obfuscateCode(inputCode, engine, preset);
+            setOutputCode(result); 
+            setShowResult(true);
+        } catch (e) {
+            alert("Error obfuscating: " + e);
+        }
+    }, 10); 
   };
-
 
   const handleCopy = () => {
     navigator.clipboard.writeText(outputCode);
     setIsCopied(true);
     setTimeout(() => setIsCopied(false), 2000);
+  };
+
+  // [NEW] Download Handler
+  const handleDownload = () => {
+    if (!outputCode) return;
+    const blob = new Blob([outputCode], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'obfuscated.lua';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
   };
 
   return (
@@ -96,7 +113,6 @@ export default function App() {
                 <option value="LuaU">LuaU</option>
                 <option value="JavaScript (MCBE)">JavaScript (MCBE)</option>
               </select>
-              {/* Custom arrow for styling */}
               <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-neutral-500">▼</div>
             </div>
           </div>
@@ -152,7 +168,7 @@ export default function App() {
             value={inputCode}
             onChange={(e) => {
               setInputCode(e.target.value);
-              if (showResult) setShowResult(false); // Hide result if user edits code
+              if (showResult) setShowResult(false);
             }}
             placeholder={placeholderText}
             className="w-full h-48 bg-neutral-900 border border-neutral-800 rounded-xl p-4 font-mono text-sm outline-none focus:border-indigo-500 transition-colors placeholder:text-neutral-700 resize-none"
@@ -173,13 +189,28 @@ export default function App() {
           <div className="space-y-2 animate-in slide-in-from-bottom-4 duration-500">
             <div className="flex items-center justify-between ml-1">
               <label className="text-xs font-bold uppercase tracking-wider text-emerald-500">Obfuscated Result</label>
-              <button 
-                onClick={handleCopy}
-                className="flex items-center gap-1.5 text-xs font-medium text-neutral-400 hover:text-white transition-colors"
-              >
-                {isCopied ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
-                {isCopied ? "Copied!" : "Copy to Clipboard"}
-              </button>
+              
+              {/* [NEW] Buttons Container */}
+              <div className="flex items-center gap-4">
+                 {/* Download Button */}
+                <button 
+                  onClick={handleDownload}
+                  className="flex items-center gap-1.5 text-xs font-medium text-neutral-400 hover:text-indigo-400 transition-colors"
+                >
+                  <Download className="w-3 h-3" />
+                  Download File
+                </button>
+
+                {/* Copy Button */}
+                <button 
+                  onClick={handleCopy}
+                  className="flex items-center gap-1.5 text-xs font-medium text-neutral-400 hover:text-white transition-colors"
+                >
+                  {isCopied ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
+                  {isCopied ? "Copied!" : "Copy to Clipboard"}
+                </button>
+              </div>
+
             </div>
             <div className="relative group">
               <textarea
@@ -187,7 +218,6 @@ export default function App() {
                 value={outputCode}
                 className="w-full h-48 bg-neutral-950 border border-emerald-900/30 rounded-xl p-4 font-mono text-sm text-emerald-100/80 outline-none resize-none focus:ring-1 focus:ring-emerald-500/50"
               />
-              {/* Visual glow effect */}
               <div className="absolute inset-0 rounded-xl bg-gradient-to-tr from-emerald-500/5 to-transparent pointer-events-none" />
             </div>
           </div>
