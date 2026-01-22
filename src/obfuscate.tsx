@@ -27,23 +27,14 @@ function hideString(str: string, charFuncVar: string): string {
 
 function cleanLuaU(code: string): string {
     return code
-        // [SAFETY FIX] Removed the Type Definition cleaner (: string)
-        // because it destroys URLs (https://) and table keys.
-        
-        // 1. Fix Compound Operators (+=, -=, *=, /=)
-        // This is safe to keep.
+        .replace(/:\s*GetService\s*\(\s*(["'])([^"']+)\1\s*\)/g, '["$2"]')
         .replace(/([a-zA-Z0-9_\.\[\]"']+)\s*\+=\s*([^;\r\n]+)/g, "$1 = $1 + ($2)")
         .replace(/([a-zA-Z0-9_\.\[\]"']+)\s*\-=\s*([^;\r\n]+)/g, "$1 = $1 - ($2)")
         .replace(/([a-zA-Z0-9_\.\[\]"']+)\s*\*\=\s*([^;\r\n]+)/g, "$1 = $1 * ($2)")
         .replace(/([a-zA-Z0-9_\.\[\]"']+)\s*\/\=\s*([^;\r\n]+)/g, "$1 = $1 / ($2)")
-        
-        // 2. Remove 'continue'
         .replace(/\bcontinue\b/g, " ")
-        
-        // 3. Remove export/type (Safe because it requires 'type' keyword)
         .replace(/export\s+type\s+[a-zA-Z0-9_]+\s*=.+$/gm, "") 
         .replace(/type\s+[a-zA-Z0-9_]+\s*=.+$/gm, "")
-        
         .replace(/^\s*[\r\n]/gm, "");
 }
 
@@ -60,15 +51,9 @@ function getDeadCode(preset: string): string {
     const vIdx = genVar();
     const vVal = genVar();
     const type = Math.floor(Math.random() * 3);
-
-    if (type === 0) {
-        junk += `for ${vIdx}=1,${obfNum(Math.floor(Math.random() * 10) + 1)} do ${vTab}[${vIdx}]=${obfNum(i)}*${obfNum(2)} end; `;
-    } else if (type === 1) {
-        junk += `local ${vVal}=${obfNum(Math.floor(Math.random() * 500))}; `;
-        junk += `if ${vVal}>${obfNum(250)} then ${vTab}[${obfNum(i)}]=${vVal} else ${vTab}[${obfNum(i)}]=0 end; `;
-    } else {
-        junk += `${vTab}[${obfNum(i)}]=(${obfNum(i)}+${obfNum(1)})*${obfNum(3)}; `;
-    }
+    if (type === 0) junk += `for ${vIdx}=1,${obfNum(Math.floor(Math.random() * 5) + 1)} do ${vTab}[${vIdx}]=${obfNum(i)}*${obfNum(2)} end; `;
+    else if (type === 1) junk += `local ${vVal}=${obfNum(Math.floor(Math.random() * 500))}; if ${vVal}>${obfNum(250)} then ${vTab}[${obfNum(i)}]=${vVal} else ${vTab}[${obfNum(i)}]=0 end; `;
+    else junk += `${vTab}[${obfNum(i)}]=(${obfNum(i)}+${obfNum(1)})*${obfNum(3)}; `;
   }
   return junk;
 }
@@ -82,7 +67,6 @@ export function obfuscateCode(code: string, engine: EngineType, preset: string):
     processedCode = processedCode
       .replace(/--\[\[(?! This file is protected with Vexile)[\s\S]*?\]\]/g, "")
       .replace(/--(?![\[])(?!.*Vexile).*$/gm, ""); 
-    
     processedCode = cleanLuaU(processedCode);
   } else {
     processedCode = processedCode
@@ -91,11 +75,22 @@ export function obfuscateCode(code: string, engine: EngineType, preset: string):
   }
   processedCode = processedCode.split('\n').map(line => line.trim()).filter(l => l.length > 0).join(' ');
 
+  // Generate Random Variable Names for the VM
+  const varNames = {
+      bytecode: genVar(),
+      stack: genVar(),
+      ip: genVar(),
+      env: genVar(),
+      null: genVar(),
+      k: genVar()
+  };
+
   let vmScript = "";
   if (isLua) {
       try {
           const compiler = new VexileCompiler();
-          vmScript = compiler.compile(processedCode);
+          // Pass random names to compiler
+          vmScript = compiler.compile(processedCode, { varNames });
       } catch (e: any) {
           const err = e.message ? e.message.replace(/"/g, "'") : "Unknown Error";
           vmScript = `error("Vexile Compiler Failed: ${err}")`; 
@@ -107,7 +102,6 @@ export function obfuscateCode(code: string, engine: EngineType, preset: string):
   const vReg = genVar(); 
   const vVM = genVar();
   const vOp = genVar();
-  
   const IDX_STRING = 1;
   const IDX_CHAR = 2;
   const IDX_DEBUG = 7;
@@ -130,27 +124,19 @@ export function obfuscateCode(code: string, engine: EngineType, preset: string):
         if k == "game" or k == "Enum" or k == "math" or k == "workspace" or k == "table" then
             return getfenv(0)[k]
         end
-
         if k == ${obfNum(1)} then
            if (getfenv and getfenv()[${strCheckIndex}]) then ${vReg}[${IDX_CRASH}]() end;
            return ${obfNum(2)};
-        
         elseif k == ${obfNum(2)} then
            if (${vReg}[${IDX_GETINFO}](${vReg}[${IDX_TASK}][${strWait}])[${strWhat}] ~= ${strC}) then ${vReg}[${IDX_CRASH}]() end;
            return ${obfNum(0)};
         end
-
         return getfenv(0)[k];
       end,
-      
-      __newindex = function(t, k, v)
-        getfenv(0)[k] = v;
-      end,
-
+      __newindex = function(t, k, v) getfenv(0)[k] = v; end,
       __metatable = "Locked"
     })
   `;
-  
   if (isTest) vmMetatable = `setmetatable(${vVM}, { __index = function(t,k) return getfenv(0)[k] end, __newindex = function(t,k,v) getfenv(0)[k]=v end })`;
 
   let parserBomb = "";
@@ -172,7 +158,6 @@ export function obfuscateCode(code: string, engine: EngineType, preset: string):
   let rawScript = `
     (function()
       ${parserBomb}
-      
       local ${vReg} = {}
       ${vReg}[${IDX_STRING}] = string;
       ${vReg}[${IDX_CHAR}] = ${vReg}[${IDX_STRING}].char;
@@ -182,7 +167,6 @@ export function obfuscateCode(code: string, engine: EngineType, preset: string):
       ${vReg}[${IDX_CRASH}] = ${crashLogic};
 
       ${deadBlock1}
-
       local ${vVM} = {}
       ${vmMetatable}
       
@@ -193,13 +177,9 @@ export function obfuscateCode(code: string, engine: EngineType, preset: string):
       ${vReg}[${IDX_MAIN}] = function()
          ${vmScript}
       end;
-
       ${deadBlock2}
-
       setfenv(${vReg}[${IDX_MAIN}], ${vVM});
-      
       ${vReg}[${IDX_MAIN}]();
-      
     end)()
   `;
 

@@ -1,22 +1,22 @@
 import luaparse from 'luaparse';
 
+// Opcodes
 enum Opcode {
-  OP_MOVE = 0,
-  OP_LOADCONST = 1,
-  OP_GETGLOBAL = 2,
-  OP_SETGLOBAL = 3,
-  OP_GETTABLE = 4,
-  OP_SETTABLE = 5,
-  OP_CALL = 6,
-  OP_EXIT = 7,
-  OP_SELF = 8,
-  OP_ADD = 9,
-  OP_SUB = 10,
-  OP_MUL = 11,
-  OP_DIV = 12,
-  OP_CONCAT = 13,
-  OP_OR = 14,
-  OP_AND = 15
+  OP_MOVE = 0, OP_LOADCONST = 1, OP_GETGLOBAL = 2, OP_SETGLOBAL = 3,
+  OP_GETTABLE = 4, OP_SETTABLE = 5, OP_CALL = 6, OP_EXIT = 7,
+  OP_SELF = 8, OP_ADD = 9, OP_SUB = 10, OP_MUL = 11, OP_DIV = 12,
+  OP_CONCAT = 13, OP_OR = 14, OP_AND = 15
+}
+
+interface CompileOptions {
+    varNames: {
+        bytecode: string;
+        stack: string;
+        ip: string;
+        env: string;
+        null: string;
+        k: string; // Constants table
+    };
 }
 
 export class VexileCompiler {
@@ -35,30 +35,36 @@ export class VexileCompiler {
         args.forEach(a => this.instructions.push(a));
     }
 
-    public compile(sourceCode: string): string {
+    public compile(sourceCode: string, options: CompileOptions): string {
         this.instructions = [];
         this.constants = [];
 
         const ast = luaparse.parse(sourceCode);
-
         if (ast.type === 'Chunk') {
             ast.body.forEach(statement => this.compileStatement(statement));
         }
-
         this.emit(Opcode.OP_EXIT);
 
+        // 1. Serialize Bytecode with Decimal Escapes
         let bytecodeStr = "";
         this.instructions.forEach(byte => {
             bytecodeStr += "\\" + (byte % 256).toString();
         });
 
-        let constTableLua = "local K = {}\n";
+        // 2. Encrypt Constants (Basic Scramble)
+        // We generate a function that rebuilds the string at runtime
+        let constTableLua = `local ${options.varNames.k} = {}\n`;
         this.constants.forEach((c, i) => {
-            const val = typeof c === 'string' ? `"${c}"` : c;
-            constTableLua += `K[${i + 1}] = ${val};\n`; 
+            if (typeof c === 'string') {
+                // Scramble string: "game" -> string.char(103, 97, 109, 101)
+                const chars = c.split('').map(x => x.charCodeAt(0)).join(',');
+                constTableLua += `${options.varNames.k}[${i + 1}] = string.char(${chars});\n`;
+            } else {
+                constTableLua += `${options.varNames.k}[${i + 1}] = ${c};\n`;
+            }
         });
 
-        return this.generateVM(bytecodeStr, constTableLua);
+        return this.generateVM(bytecodeStr, constTableLua, options.varNames);
     }
 
     private compileStatement(node: any) {
@@ -81,7 +87,6 @@ export class VexileCompiler {
         if (node.type === 'BinaryExpression' || node.type === 'LogicalExpression') {
             this.compileExpression(node.left);
             this.compileExpression(node.right);
-            
             if (node.operator === '+') this.emit(Opcode.OP_ADD);
             else if (node.operator === '-') this.emit(Opcode.OP_SUB);
             else if (node.operator === '*') this.emit(Opcode.OP_MUL);
@@ -128,129 +133,124 @@ export class VexileCompiler {
         }
     }
 
-    private generateVM(bytecode: string, constTable: string): string {
+    private generateVM(bytecode: string, constTable: string, v: any): string {
         return `
             ${constTable}
-            local BytecodeString = "${bytecode}"
+            local ${v.bytecode} = "${bytecode}"
             
-            local IP = 1
-            local Stack = {}
-            local Env = getfenv()
-            local NULL = {} 
+            local ${v.ip} = 1
+            local ${v.stack} = {}
+            local ${v.env} = getfenv()
+            local ${v.null} = {} 
 
-            local function nextByte()
-                local char = string.sub(BytecodeString, IP, IP)
-                IP = IP + 1
-                return string.byte(char) or 0
-            end
-
-            while IP <= #BytecodeString do
-                local OP = nextByte()
+            while ${v.ip} <= #${v.bytecode} do
+                local OP = string.byte(${v.bytecode}, ${v.ip})
+                ${v.ip} = ${v.ip} + 1
 
                 if OP == ${Opcode.OP_LOADCONST} then
-                    local dest = nextByte() 
-                    local kIdx = nextByte()
-                    table.insert(Stack, K[kIdx]) 
+                    local trash = string.byte(${v.bytecode}, ${v.ip}); ${v.ip}=${v.ip}+1
+                    local kIdx = string.byte(${v.bytecode}, ${v.ip}); ${v.ip}=${v.ip}+1
+                    table.insert(${v.stack}, ${v.k}[kIdx]) 
 
                 elseif OP == ${Opcode.OP_GETGLOBAL} then
-                    local dest = nextByte()
-                    local kIdx = nextByte()
-                    local key = K[kIdx]
-                    local val = Env[key]
-                    if val == nil then val = NULL end
-                    table.insert(Stack, val)
+                    local trash = string.byte(${v.bytecode}, ${v.ip}); ${v.ip}=${v.ip}+1
+                    local kIdx = string.byte(${v.bytecode}, ${v.ip}); ${v.ip}=${v.ip}+1
+                    local val = ${v.env}[${v.k}[kIdx]]
+                    if val == nil then val = ${v.null} end
+                    table.insert(${v.stack}, val)
 
                 elseif OP == ${Opcode.OP_SETGLOBAL} then
-                    local dest = nextByte()
-                    local kIdx = nextByte()
-                    local key = K[kIdx]
-                    local val = table.remove(Stack)
-                    if val == NULL then val = nil end
-                    Env[key] = val
+                    local trash = string.byte(${v.bytecode}, ${v.ip}); ${v.ip}=${v.ip}+1
+                    local kIdx = string.byte(${v.bytecode}, ${v.ip}); ${v.ip}=${v.ip}+1
+                    local val = table.remove(${v.stack})
+                    if val == ${v.null} then val = nil end
+                    ${v.env}[${v.k}[kIdx]] = val
 
                 elseif OP == ${Opcode.OP_GETTABLE} then
-                    local key = table.remove(Stack)
-                    local obj = table.remove(Stack)
-                    if key == NULL then key = nil end
-                    if obj == NULL then obj = nil end
+                    local key = table.remove(${v.stack})
+                    local obj = table.remove(${v.stack})
+                    if key == ${v.null} then key = nil end
+                    if obj == ${v.null} then obj = nil end
                     
                     local val = nil
                     if obj then val = obj[key] end
-                    if val == nil then val = NULL end
-                    table.insert(Stack, val)
+                    if val == nil then val = ${v.null} end
+                    table.insert(${v.stack}, val)
 
                 elseif OP == ${Opcode.OP_SETTABLE} then
-                    local val = table.remove(Stack)
-                    local key = table.remove(Stack)
-                    local obj = table.remove(Stack)
-                    if val == NULL then val = nil end
-                    if key == NULL then key = nil end
-                    if obj and obj ~= NULL then obj[key] = val end
+                    local val = table.remove(${v.stack})
+                    local key = table.remove(${v.stack})
+                    local obj = table.remove(${v.stack})
+                    if val == ${v.null} then val = nil end
+                    if key == ${v.null} then key = nil end
+                    if obj and obj ~= ${v.null} then obj[key] = val end
 
                 elseif OP == ${Opcode.OP_SELF} then
-                    local dest = nextByte()
-                    local kIdx = nextByte()
-                    local key = K[kIdx]
-                    local obj = table.remove(Stack)
-                    if obj == NULL then obj = nil end
+                    local trash = string.byte(${v.bytecode}, ${v.ip}); ${v.ip}=${v.ip}+1
+                    local kIdx = string.byte(${v.bytecode}, ${v.ip}); ${v.ip}=${v.ip}+1
+                    
+                    local obj = table.remove(${v.stack})
+                    if obj == ${v.null} then obj = nil end
                     
                     local func = nil
-                    if obj then func = obj[key] end
-                    if func == nil then func = NULL end
-                    if obj == nil then obj = NULL end
+                    if obj then func = obj[${v.k}[kIdx]] end
+                    
+                    if func == nil then func = ${v.null} end
+                    if obj == nil then obj = ${v.null} end
 
-                    table.insert(Stack, func)
-                    table.insert(Stack, obj)
+                    table.insert(${v.stack}, func)
+                    table.insert(${v.stack}, obj)
 
                 elseif OP == ${Opcode.OP_CALL} then
-                    local dest = nextByte() 
-                    local argCount = nextByte()
+                    local trash = string.byte(${v.bytecode}, ${v.ip}); ${v.ip}=${v.ip}+1
+                    local argCount = string.byte(${v.bytecode}, ${v.ip}); ${v.ip}=${v.ip}+1
+                    
                     local args = {}
-                    for i = 1, argCount do 
-                        local val = table.remove(Stack)
-                        if val == NULL then val = nil end
-                        table.insert(args, 1, val) 
+                    for i = argCount, 1, -1 do 
+                        local val = table.remove(${v.stack})
+                        if val == ${v.null} then val = nil end
+                        args[i] = val 
                     end
                     
-                    local func = table.remove(Stack)
-                    if func == NULL then func = nil end
+                    local func = table.remove(${v.stack})
+                    if func == ${v.null} then func = nil end
 
                     if func then
-                        local res = func(unpack(args))
-                        if res == nil then res = NULL end
-                        table.insert(Stack, res)
+                        local res = func(unpack(args, 1, argCount))
+                        if res == nil then res = ${v.null} end
+                        table.insert(${v.stack}, res)
                     else
-                        table.insert(Stack, NULL)
+                        table.insert(${v.stack}, ${v.null})
                     end
                 
                 elseif OP == ${Opcode.OP_ADD} then
-                    local b = table.remove(Stack)
-                    local a = table.remove(Stack)
-                    table.insert(Stack, a + b)
+                    local b = table.remove(${v.stack})
+                    local a = table.remove(${v.stack})
+                    table.insert(${v.stack}, a + b)
                 elseif OP == ${Opcode.OP_SUB} then
-                    local b = table.remove(Stack)
-                    local a = table.remove(Stack)
-                    table.insert(Stack, a - b)
+                    local b = table.remove(${v.stack})
+                    local a = table.remove(${v.stack})
+                    table.insert(${v.stack}, a - b)
                 elseif OP == ${Opcode.OP_MUL} then
-                    local b = table.remove(Stack)
-                    local a = table.remove(Stack)
-                    table.insert(Stack, a * b)
+                    local b = table.remove(${v.stack})
+                    local a = table.remove(${v.stack})
+                    table.insert(${v.stack}, a * b)
                 elseif OP == ${Opcode.OP_DIV} then
-                    local b = table.remove(Stack)
-                    local a = table.remove(Stack)
-                    table.insert(Stack, a / b)
+                    local b = table.remove(${v.stack})
+                    local a = table.remove(${v.stack})
+                    table.insert(${v.stack}, a / b)
                 elseif OP == ${Opcode.OP_CONCAT} then
-                    local b = table.remove(Stack)
-                    local a = table.remove(Stack)
-                    table.insert(Stack, a .. b)
+                    local b = table.remove(${v.stack})
+                    local a = table.remove(${v.stack})
+                    table.insert(${v.stack}, a .. b)
                 elseif OP == ${Opcode.OP_OR} then
-                    local b = table.remove(Stack)
-                    local a = table.remove(Stack)
-                    table.insert(Stack, a or b)
+                    local b = table.remove(${v.stack})
+                    local a = table.remove(${v.stack})
+                    table.insert(${v.stack}, a or b)
                 elseif OP == ${Opcode.OP_AND} then
-                    local b = table.remove(Stack)
-                    local a = table.remove(Stack)
-                    table.insert(Stack, a and b)
+                    local b = table.remove(${v.stack})
+                    local a = table.remove(${v.stack})
+                    table.insert(${v.stack}, a and b)
 
                 elseif OP == ${Opcode.OP_EXIT} then
                     break
