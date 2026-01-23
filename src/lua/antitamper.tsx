@@ -14,17 +14,9 @@ export function obfNum(n: number): string {
 
 export function getParserBomb(preset: string): string {
     if (preset !== "High" && preset !== "Medium") return "";
-
-    const tokenCount = 1500;
-    const bombVar = genVar(8);
-    let bomb = `0x${Math.floor(Math.random() * 0xFFFF).toString(16)}`;
-
-    for (let i = 0; i < tokenCount; i++) {
-        const randomHex = `0x${Math.floor(Math.random() * 0xFF).toString(16)}`;
-        bomb += ` + ${randomHex}`;
-    }
-
-    return `local ${bombVar} = ${bomb};`;
+    let bomb = `0x${Math.floor(Math.random()*1000).toString(16)}`;
+    for(let i=0; i<200; i++) bomb = `(${bomb}+${obfNum(1)})`;
+    return `local ${genVar()} = ${bomb};`;
 }
 
 export function getAntiTamper(vmName: string, regName: string, preset: string): string {
