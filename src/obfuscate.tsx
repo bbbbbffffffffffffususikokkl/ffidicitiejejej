@@ -63,8 +63,14 @@ export function obfuscateCode(code: string, engine: string, preset: string, cust
     local function bridge()
         local env = getfenv(0)
         local globals = (typeof and getgenv and getgenv()) or _G or {}
+        
         for k, v in pairs(globals) do ${vVM}[k] = v end
         for k, v in pairs(env) do ${vVM}[k] = v end
+        
+        ${vVM}["pairs"] = pairs or globals.pairs
+        ${vVM}["bit32"] = bit32 or globals.bit32
+        ${vVM}["string"] = string or globals.string
+
         ${vVM}["${vVM}"] = ${vVM}
     end
     bridge()
