@@ -3,21 +3,6 @@ import { generateVM } from './lua/vm';
 import { getDeadCode } from './lua/controlflow';
 import { getParserBomb, getAntiTamper, genVar } from './lua/antitamper';
 
-export interface ObfuscationSettings {
-    stringEncryption: boolean;
-    antiTamper: boolean;
-    antiTamperPlus: boolean;
-    deadCode: boolean;
-    vmCompiler: boolean;
-    parserBomb: boolean;
-}
-
-function getSettings(preset: string, custom: ObfuscationSettings): ObfuscationSettings {
-    if (preset === 'Custom') return custom;
-    if (preset === 'High') return { stringEncryption: true, antiTamper: true, antiTamperPlus: true, deadCode: true, vmCompiler: true, parserBomb: true };
-    return { stringEncryption: false, antiTamper: true, antiTamperPlus: false, deadCode: true, vmCompiler: true, parserBomb: true };
-}
-
 export function obfuscateCode(code: string, engine: string, preset: string, customSettings: ObfuscationSettings): string {
     const settings = getSettings(preset, customSettings);
     let userCode = code.replace(/--.*$/gm, "").trim();
@@ -39,8 +24,8 @@ export function obfuscateCode(code: string, engine: string, preset: string, cust
         const bytecode = compiler.compile(fullSource);
         let vmCode = generateVM(bytecode);
 
-        // We use standard 'pcall' and 'unpack' without underscores
-        // We replace getfenv() with the bridge table variable directly
+        // Standardized names: pcall and unpack
+        // Replace getfenv() with the bridge table variable directly
         finalContent = `
         local pcall, unpack = pcall, table.unpack or unpack;
         ${vmCode.replace(/getfenv\(\)/g, vVM)}
@@ -48,24 +33,17 @@ export function obfuscateCode(code: string, engine: string, preset: string, cust
     } else {
         finalContent = fullSource;
     }
-
-    // Fixed the execution wrapper to handle the function reference correctly
-    const innerExecution = `
-    local function execute()
-        local success, err = pcall(${vReg}[1])
-        if not success and err then 
-            warn("Vexile Fatal: " .. tostring(err)) 
-        end
-    end
-    if task and task.defer and ${isPlus ? "true" : "false"} then
-        task.defer(execute)
-    else
-        execute()
+    
+    const coreExecution = `
+    setfenv(${vReg}[1], ${vVM})
+    local success, err = pcall(${vReg}[1])
+    if not success and err then 
+        warn("Vexile Fatal: " .. tostring(err)) 
     end
     `.trim();
 
     return `--[[ Protected with Vexile v3.0.0 ]]
-(function()
+${isPlus ? "task.defer(function()" : "(function()"}
     ${parserBomb}
     local ${vReg} = {}
     local ${vVM} = {}
@@ -102,7 +80,7 @@ export function obfuscateCode(code: string, engine: string, preset: string, cust
         ${finalContent}
     end
     
-    setfenv(${vReg}[1], ${vVM})
-    ${innerExecution}
-end)()`.trim();
+    ${coreExecution}
+${isPlus ? "end)" : "()"}
+`.trim();
 }
