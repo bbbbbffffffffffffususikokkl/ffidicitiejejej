@@ -59,77 +59,45 @@ export function obfuscateCode(code: string, engine: string, preset: string, cust
     
     const vReg = genVar(12);
     const vVM = genVar(12);
-
+    
     const deadCode1 = settings.deadCode ? getDeadCode(preset) : "";
     const parserBomb = settings.parserBomb ? getParserBomb(preset) : "";
     
     const isPlus = settings.antiTamperPlus;
     const antiTamperSource = (isPlus || settings.antiTamper) ? `(function() ${getAntiTamper(vVM, vReg, preset)} end)();` : "";
-
     const tamperPlusLoop = isPlus ? "\nwhile task.wait(2) do end" : "";
-    const fullSource = `${antiTamperSource}\n${deadCode1}\n${userCode}\n${tamperPlusLoop}`;
-
+    
+    const fullSource = `${antiTamperSource}\n${deadCode1}\n${tamperPlusLoop}\n${userCode}`;
     let finalContent = "";
+    
     if (settings.vmCompiler) {
         const compiler = new Compiler(settings);
         const bytecode = compiler.compile(fullSource);
         let vmCode = generateVM(bytecode);
-
-        finalContent = `
-        local ${vVM} = ...;
-        local pcall, unpack = ${vVM}.pcall, ${vVM}.unpack;
-        ${vmCode.replace(/getfenv\(\)/g, vVM)}
-        `.trim();
-    } else {
-        finalContent = fullSource;
+        finalContent = `local ${vVM} = ...; local pcall, unpack = ${vVM}.pcall, ${vVM}.unpack; ${vmCode.replace(/getfenv\(\)/g, vVM)}`;
+    } else { 
+        finalContent = fullSource; 
     }
-
-    const coreExecution = `
-    setfenv(${vReg}[1], ${vVM})
-    local success, err = pcall(${vReg}[1], ${vVM})
-    if not success and err then 
-        warn("Vexile VM Fatal: " .. tostring(err)) 
-    end
-    `.trim();
+    const coreExecution = `setfenv(${vReg}[1], ${vVM}) local success, err = pcall(${vReg}[1], ${vVM}) if not success and err then warn("Vexile Fatal: " .. tostring(err)) end`;
     
-    return `--[[ Protected with Vexile v3.0.0 ]]
+    return `--[[ Protected with Vexile v1.0 ]]
 ${isPlus ? "task.defer(function()" : "(function()"}
     ${parserBomb}
-    local ${vReg} = {}
-    local ${vVM} = {}
-    
+    local ${vReg}, ${vVM} = {}, {}
     local function bridge()
-        local env = getfenv(0)
-        local globals = (typeof and getgenv and getgenv()) or _G or {}
-        
+        local env, globals = getfenv(0), (typeof and getgenv and getgenv()) or _G or {}
         for k, v in pairs(globals) do ${vVM}[k] = v end
         for k, v in pairs(env) do ${vVM}[k] = v end
-        
-        ${vVM}["table"] = table or globals.table
+        ${vVM}["table"], ${vVM}["task"], ${vVM}["debug"] = table or globals.table, task or globals.task, debug or globals.debug
         ${vVM}["unpack"] = unpack or (table and table.unpack) or globals.unpack
-        ${vVM}["task"] = task or globals.task
-        ${vVM}["bit32"] = bit32 or globals.bit32
-        ${vVM}["getfenv"] = getfenv or env.getfenv
-        ${vVM}["setfenv"] = setfenv or env.setfenv
-        ${vVM}["pairs"] = pairs or globals.pairs
-        ${vVM}["string"] = string or globals.string
-        ${vVM}["setmetatable"] = setmetatable or globals.setmetatable
-        ${vVM}["type"] = type
-        ${vVM}["typeof"] = typeof
-        ${vVM}["print"] = print or globals.print
-        ${vVM}["warn"] = warn or globals.warn
-        ${vVM}["tostring"] = tostring or globals.tostring
-        ${vVM}["pcall"] = pcall or globals.pcall
-        ${vVM}["error"] = error or globals.error
-
+        ${vVM}["bit32"], ${vVM}["getfenv"], ${vVM}["setfenv"] = bit32 or globals.bit32, getfenv or env.getfenv, setfenv or env.setfenv
+        ${vVM}["pairs"], ${vVM}["string"], ${vVM}["setmetatable"] = pairs or globals.pairs, string or globals.string, setmetatable or globals.setmetatable
+        ${vVM}["type"], ${vVM}["typeof"], ${vVM}["print"] = type, typeof, print or globals.print
+        ${vVM}["warn"], ${vVM}["tostring"], ${vVM}["pcall"], ${vVM}["error"] = warn or globals.warn, tostring or globals.tostring, pcall or globals.pcall, error or globals.error
         ${vVM}["${vVM}"] = ${vVM}
     end
     bridge()
-
-    ${vReg}[1] = function(...)
-        ${finalContent}
-    end
-    
+    ${vReg}[1] = function(...) ${finalContent} end
     ${coreExecution}
 ${isPlus ? "end)" : "end)()"}
 `.trim();
