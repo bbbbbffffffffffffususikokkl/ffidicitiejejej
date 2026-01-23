@@ -134,15 +134,18 @@ export class Compiler {
                 }
                 break;
             case 'Call':
-                const isMethod = e.base.type === 'Member' && e.base.indexer === ':';
-                this.compileExpr(e.base, reg);
-                // If it's a method, the object is already at reg+1, args start at reg+2
-                const offset = isMethod ? 1 : 0;
-                e.args.forEach((arg, i) => {
-                    this.compileExpr(arg, reg + offset + i + 1);
-                });
-                this.emit('CALL', reg, e.args.length + 1 + offset, 1);
-                break;
+    const isMethod = e.base.type === 'Member' && e.base.indexer === ':';
+    this.compileExpr(e.base, reg); // Loads func into reg, and if method, loads self into reg+1
+    
+    const argStart = isMethod ? 1 : 0;
+    e.args.forEach((arg, i) => {
+        // Args start at reg + 1 (for normal) or reg + 2 (for method)
+        this.compileExpr(arg, reg + argStart + i + 1);
+    });
+    
+    // total args = user args + (1 if method else 0)
+    this.emit('CALL', reg, e.args.length + 1 + argStart, 1);
+    break;
             case 'Table':
                 this.emit('NEWTABLE', reg, 0, 0);
                 e.fields.forEach((field, i) => {
