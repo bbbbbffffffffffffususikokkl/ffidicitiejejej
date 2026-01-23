@@ -7,7 +7,7 @@ export function getDeadCode(preset: string): string {
     
     let count = 1000;
     if (preset === "Medium") count = 1500;
-    if (preset === "High" || preset === "Custom") count = 100;
+    if (preset === "High" || preset === "Custom") count = 2000;
 
     const junkTable = genVar(8);
     let junk = `local ${junkTable} = {}; `;
