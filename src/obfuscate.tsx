@@ -143,6 +143,6 @@ ${isPlus ? "task.defer(function()" : "(function()"}
     end
     
     ${coreExecution}
-${isPlus ? "end)" : "()"}
+    end)()
 `.trim();
 }
