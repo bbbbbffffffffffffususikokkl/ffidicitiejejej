@@ -2,11 +2,13 @@
 // By Vexile
 import { Statement, Expression, Chunk } from './ast';
 import { Parser } from './parser';
+import { encryptString } from './stringencryption';
 
 export class Compiler {
     private instructions: any[] = [];
     private constants: any[] = [];
-    private locals: string[] = []; 
+    private locals: string[] = [];
+    private settings: any;
     private opMap = {
         MOVE: 0, LOADK: 1, GETGLOBAL: 2, SETGLOBAL: 3, 
         GETTABLE: 4, SETTABLE: 5, CALL: 6, RETURN: 7,
@@ -15,13 +17,17 @@ export class Compiler {
         NEWTABLE: 22, SETLIST: 23, FORLOOP: 24, FORPREP: 25
     };
 
-    constructor() {
+    constructor(settings: any) {
+        this.settings = settings;
         const vals = Array.from({length: 26}, (_, i) => i).sort(() => Math.random() - 0.5);
         let i = 0;
         for (const k in this.opMap) { (this.opMap as any)[k] = vals[i++]; }
     }
 
     private addK(val: any) {
+        if (this.settings.stringEncryption && typeof val === 'string') {
+            val = encryptString(val);
+        }
         const idx = this.constants.indexOf(val);
         if (idx !== -1) return idx;
         this.constants.push(val);
@@ -42,44 +48,47 @@ export class Compiler {
 
     private compileBlock(stats: Statement[]) {
         stats.forEach(stat => {
-            const reg = this.locals.length;
+            // RECYCLE REGISTERS: Start every statement at the current local count
+            // This prevents the register index from ever climbing to 200
+            const baseReg = this.locals.length;
+            
             switch (stat.type) {
                 case 'CallStatement':
-                    this.compileExpr(stat.expression, reg);
+                    this.compileExpr(stat.expression, baseReg);
                     break;
                 case 'Local':
                     stat.init.forEach((expr, i) => {
-                        this.compileExpr(expr, reg + i);
+                        this.compileExpr(expr, baseReg + i);
                         this.locals.push(stat.vars[i]);
                     });
                     break;
                 case 'Assignment':
                     stat.init.forEach((expr, i) => {
-                        const tempReg = reg + i + 1;
-                        this.compileExpr(expr, tempReg);
+                        const valReg = baseReg; 
+                        this.compileExpr(expr, valReg);
                         const target = stat.vars[i];
                         if (target.type === 'Identifier') {
                             const lIdx = this.locals.indexOf(target.name);
-                            if (lIdx !== -1) this.emit('MOVE', lIdx, tempReg);
-                            else this.emit('SETGLOBAL', tempReg, this.addK(target.name));
+                            if (lIdx !== -1) this.emit('MOVE', lIdx, valReg);
+                            else this.emit('SETGLOBAL', valReg, this.addK(target.name));
                         } else if (target.type === 'Member') {
-                            this.compileExpr(target.base, reg + i + 2);
-                            const kReg = reg + i + 3;
-                            this.compileExpr(target.identifier, kReg);
-                            this.emit('SETTABLE', reg + i + 2, kReg, tempReg);
+                            const objReg = baseReg + 1;
+                            this.compileExpr(target.base, objReg);
+                            const keyReg = baseReg + 2;
+                            this.compileExpr(target.identifier, keyReg);
+                            this.emit('SETTABLE', objReg, keyReg, valReg);
                         }
                     });
                     break;
                 case 'If':
                     stat.clauses.forEach((clause) => {
-                        this.compileExpr(clause.condition, reg);
-                        // Simplified JMP logic for If
+                        this.compileExpr(clause.condition, baseReg);
                         this.compileBlock(clause.body);
                     });
                     break;
                 case 'Return':
-                    stat.args.forEach((arg, i) => this.compileExpr(arg, reg + i));
-                    this.emit('RETURN', reg, stat.args.length + 1);
+                    stat.args.forEach((arg, i) => this.compileExpr(arg, baseReg + i));
+                    this.emit('RETURN', baseReg, stat.args.length + 1);
                     break;
             }
         });
@@ -112,31 +121,40 @@ export class Compiler {
                 break;
             case 'Member':
                 this.compileExpr(e.base, reg);
-                const kReg = reg + 1;
-                if (e.identifier.type === 'Identifier') {
-                    this.emit('LOADK', kReg, this.addK(e.identifier.name));
+                const keyR = reg + 1;
+                this.emit('LOADK', keyR, this.addK((e.identifier as any).name || (e.identifier as any).value));
+                
+                if (e.indexer === ':') {
+                    // METHOD CALL FIX: Push 'self' into the next register 
+                    // and keep the function in the current register
+                    this.emit('MOVE', reg + 1, reg); 
+                    this.emit('GETTABLE', reg, reg, keyR);
                 } else {
-                    this.compileExpr(e.identifier, kReg);
+                    this.emit('GETTABLE', reg, reg, keyR);
                 }
-                this.emit('GETTABLE', reg, reg, kReg);
                 break;
             case 'Call':
+                const isMethod = e.base.type === 'Member' && e.base.indexer === ':';
                 this.compileExpr(e.base, reg);
-                e.args.forEach((arg, i) => this.compileExpr(arg, reg + i + 1));
-                this.emit('CALL', reg, e.args.length + 1, 1);
+                // If it's a method, the object is already at reg+1, args start at reg+2
+                const offset = isMethod ? 1 : 0;
+                e.args.forEach((arg, i) => {
+                    this.compileExpr(arg, reg + offset + i + 1);
+                });
+                this.emit('CALL', reg, e.args.length + 1 + offset, 1);
                 break;
             case 'Table':
-                this.emit('NEWTABLE', reg, e.fields.length, 0);
+                this.emit('NEWTABLE', reg, 0, 0);
                 e.fields.forEach((field, i) => {
-                    const valReg = reg + 1;
-                    this.compileExpr(field.value, valReg);
+                    const vR = reg + 1;
+                    this.compileExpr(field.value, vR);
+                    const kR = reg + 2;
                     if (field.key) {
-                        const keyReg = reg + 2;
-                        this.compileExpr(field.key, keyReg);
-                        this.emit('SETTABLE', reg, keyReg, valReg);
+                        this.compileExpr(field.key, kR);
+                        this.emit('SETTABLE', reg, kR, vR);
                     } else {
-                        this.emit('LOADK', reg + 2, this.addK(i + 1));
-                        this.emit('SETTABLE', reg, reg + 2, valReg);
+                        this.emit('LOADK', kR, this.addK(i + 1));
+                        this.emit('SETTABLE', reg, kR, vR);
                     }
                 });
                 break;

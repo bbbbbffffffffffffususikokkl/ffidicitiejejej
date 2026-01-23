@@ -1,17 +1,25 @@
 // String Encryptor
 // By Vexile
-export function encryptString(str: string): string {
-    const key = Math.floor(Math.random() * 255) + 1;
-    const encryptedBytes = str.split('').map(char => char.charCodeAt(0) + key);
-    const bytesList = encryptedBytes.join(',');
-    
-    const strVar = "s";
-    const byteVar = "b";
-    
-    return `(function() local ${strVar} = "" for _, ${byteVar} in pairs({${bytesList}}) do ${strVar} = ${strVar} .. string.char(${byteVar} - ${key}) end return ${strVar} end)()`;
-}
+import { genVar, obfNum } from './antitamper';
 
-export function encryptNumber(num: number): string {
-    const offset = Math.floor(Math.random() * 1000);
-    return `((${num + offset}) - ${offset})`;
+export function encryptString(str: string): string {
+    const key = Math.floor(Math.random() * 254) + 1;
+    const bytes = Array.from(str).map(char => char.charCodeAt(0) ^ key);
+    
+    const byteTable = "{" + bytes.map(b => obfNum(b)).join(",") + "}";
+    const dataVar = genVar(8);
+    const keyVar = genVar(8);
+    const resVar = genVar(8);
+    const iVar = genVar(8);
+    const vVar = genVar(8);
+
+    return `(function() 
+        local ${dataVar} = ${byteTable}
+        local ${keyVar} = ${obfNum(key)}
+        local ${resVar} = ""
+        for ${iVar}, ${vVar} in pairs(${dataVar}) do
+            ${resVar} = ${resVar} .. string.char(bit32.bxor(${vVar}, ${keyVar}))
+        end
+        return ${resVar}
+    end)()`;
 }
