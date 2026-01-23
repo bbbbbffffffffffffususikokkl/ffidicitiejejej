@@ -76,7 +76,8 @@ export function obfuscateCode(code: string, engine: string, preset: string, cust
         let vmCode = generateVM(bytecode);
 
         finalContent = `
-        local pcall, unpack = pcall, table.unpack or unpack;
+        local ${vVM} = ...;
+        local pcall, unpack = ${vVM}.pcall, ${vVM}.unpack;
         ${vmCode.replace(/getfenv\(\)/g, vVM)}
         `.trim();
     } else {
@@ -85,13 +86,13 @@ export function obfuscateCode(code: string, engine: string, preset: string, cust
 
     const coreExecution = `
     setfenv(${vReg}[1], ${vVM})
-    local success, err = pcall(${vReg}[1])
+    local success, err = pcall(${vReg}[1], ${vVM})
     if not success and err then 
-        warn("Vexile Fatal: " .. tostring(err)) 
+        warn("Vexile VM Fatal: " .. tostring(err)) 
     end
     `.trim();
     
-    return `--[[ Protected with Vexile v1.0.0 ]]
+    return `--[[ Protected with Vexile v3.0.0 ]]
 ${isPlus ? "task.defer(function()" : "(function()"}
     ${parserBomb}
     local ${vReg} = {}
@@ -125,7 +126,7 @@ ${isPlus ? "task.defer(function()" : "(function()"}
     end
     bridge()
 
-    ${vReg}[1] = function()
+    ${vReg}[1] = function(...)
         ${finalContent}
     end
     
