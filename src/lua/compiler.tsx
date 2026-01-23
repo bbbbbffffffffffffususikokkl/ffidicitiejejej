@@ -1,5 +1,3 @@
-// Compiler
-// By Vexile
 import { Statement, Expression, Chunk } from './ast';
 import { Parser } from './parser';
 import { encryptString } from './stringencryption';
@@ -48,8 +46,8 @@ export class Compiler {
 
     private compileBlock(stats: Statement[]) {
         stats.forEach(stat => {
-            // RECYCLE REGISTERS: Start every statement at the current local count
-            // This prevents the register index from ever climbing to 200
+            // REGISTER RECYCLING: Resets the register pointer for every new statement
+            // This ensures temporary registers used in line 1 are reused in line 2
             const baseReg = this.locals.length;
             
             switch (stat.type) {
@@ -125,8 +123,7 @@ export class Compiler {
                 this.emit('LOADK', keyR, this.addK((e.identifier as any).name || (e.identifier as any).value));
                 
                 if (e.indexer === ':') {
-                    // METHOD CALL FIX: Push 'self' into the next register 
-                    // and keep the function in the current register
+                    // METHOD CALL FIX: Push 'self' into reg+1, put function into reg
                     this.emit('MOVE', reg + 1, reg); 
                     this.emit('GETTABLE', reg, reg, keyR);
                 } else {
@@ -134,18 +131,17 @@ export class Compiler {
                 }
                 break;
             case 'Call':
-    const isMethod = e.base.type === 'Member' && e.base.indexer === ':';
-    this.compileExpr(e.base, reg); // Loads func into reg, and if method, loads self into reg+1
-    
-    const argStart = isMethod ? 1 : 0;
-    e.args.forEach((arg, i) => {
-        // Args start at reg + 1 (for normal) or reg + 2 (for method)
-        this.compileExpr(arg, reg + argStart + i + 1);
-    });
-    
-    // total args = user args + (1 if method else 0)
-    this.emit('CALL', reg, e.args.length + 1 + argStart, 1);
-    break;
+                const isMethod = e.base.type === 'Member' && e.base.indexer === ':';
+                this.compileExpr(e.base, reg); 
+                
+                const argOffset = isMethod ? 1 : 0;
+                e.args.forEach((arg, i) => {
+                    // Arguments start at reg+1 (normal) or reg+2 (method)
+                    this.compileExpr(arg, reg + argOffset + i + 1);
+                });
+                
+                this.emit('CALL', reg, e.args.length + 1 + argOffset, 1);
+                break;
             case 'Table':
                 this.emit('NEWTABLE', reg, 0, 0);
                 e.fields.forEach((field, i) => {

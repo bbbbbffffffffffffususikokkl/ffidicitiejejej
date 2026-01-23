@@ -1,6 +1,7 @@
 export function generateVM(bytecode: any): string {
     const { code, constants, opMap } = bytecode;
     const instStr = code.map((i: any) => `{${i.op},${i.a},${i.b},${i.c}}`).join(',');
+    
     const constStr = constants.map((c: any) => {
         if (typeof c === 'string' && c.startsWith('(function')) return c;
         if (typeof c === 'string') return `[=[${c}]=]`;
@@ -20,21 +21,34 @@ export function generateVM(bytecode: any): string {
             [${opMap.GETTABLE}] = function(i) Stk[i[2]] = Stk[i[3]][Stk[i[4]]] end,
             [${opMap.SETTABLE}] = function(i) Stk[i[2]][Stk[i[3]]] = Stk[i[4]] end,
             [${opMap.NEWTABLE}] = function(i) Stk[i[2]] = {} end,
+            [${opMap.SETLIST}] = function(i) for j=1, i[3] do Stk[i[2]][i[4]+j-1] = Stk[i[2]+j] end end,
             [${opMap.CALL}] = function(i) 
                 local func = Stk[i[2]]
                 local args = {}
                 for j = 1, i[3] - 1 do
                     args[j] = Stk[i[2] + j]
                 end
-                local res = {func(table.unpack(args))}
-                Stk[i[2]] = res[1]
+                local success, result = pcall(func, table.unpack(args))
+                if success then
+                    Stk[i[2]] = result
+                else
+                    error("Vexile VM Call Error: " .. tostring(result))
+                end
             end,
             [${opMap.RETURN}] = function(i) pc = #Inst + 1 return true end,
             [${opMap.ADD}] = function(i) Stk[i[2]] = Stk[i[3]] + Stk[i[4]] end,
             [${opMap.SUB}] = function(i) Stk[i[2]] = Stk[i[3]] - Stk[i[4]] end,
             [${opMap.MUL}] = function(i) Stk[i[2]] = Stk[i[3]] * Stk[i[4]] end,
             [${opMap.DIV}] = function(i) Stk[i[2]] = Stk[i[3]] / Stk[i[4]] end,
+            [${opMap.MOD}] = function(i) Stk[i[2]] = Stk[i[3]] % Stk[i[4]] end,
+            [${opMap.POW}] = function(i) Stk[i[2]] = Stk[i[3]] ^ Stk[i[4]] end,
+            [${opMap.UNM}] = function(i) Stk[i[2]] = -Stk[i[3]] end,
+            [${opMap.NOT}] = function(i) Stk[i[2]] = not Stk[i[3]] end,
+            [${opMap.LEN}] = function(i) Stk[i[2]] = #Stk[i[3]] end,
+            [${opMap.CONCAT}] = function(i) Stk[i[2]] = Stk[i[3]] .. Stk[i[4]] end,
             [${opMap.EQ}] = function(i) if Stk[i[3]] ~= Stk[i[4]] then pc = pc + 1 end end,
+            [${opMap.LT}] = function(i) if not (Stk[i[3]] < Stk[i[4]]) then pc = pc + 1 end end,
+            [${opMap.LE}] = function(i) if not (Stk[i[3]] <= Stk[i[4]]) then pc = pc + 1 end end,
             [${opMap.JMP}] = function(i) pc = pc + i[2] end
         }
         while pc <= #Inst do
@@ -44,6 +58,6 @@ export function generateVM(bytecode: any): string {
             if f then f(i) end
         end
     end
-    VexileVM()
+    return VexileVM()
     `.trim();
 }
