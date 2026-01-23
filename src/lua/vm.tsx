@@ -18,34 +18,35 @@ export function generateVM(bytecode: any): string {
             [3] = function(i) Env[Const[i[3]+1]] = Stk[i[2]] end,
             [4] = function(i) Stk[i[2]] = Stk[i[3]][Stk[i[4]]] end,
             [5] = function(i) Stk[i[2]][Stk[i[3]]] = Stk[i[4]] end,
-                        [6] = function(i) 
-                local A = i[2]
-                local func = Stk[A]
-                
-                if not func then 
-                    warn("Vexile VM Fatal: Attempted to call nil at PC="..pc)
-                    return
-                end
-                
-                local B = i[3]
-                local results = {_pcall(func, __unpack(Stk, A + 1, B))}
-                
-                if results[1] then
-                    local C = i[4]
-                    if C == 1 then
-                    elseif C == 2 then
-                        Stk[A] = results[2]
-                    else
-                        local edx = 0
-                        for idx = A, C do
-                            edx = edx + 1
-                            Stk[idx] = results[edx + 1]
-                        end
-                    end
-                else
-                    error("Vexile Error: " .. tostring(results[2]), 0)
-                end
-            end,
+            [6] = function(i) 
+    local A = i[2]
+    local func = Stk[A]
+    
+    if not func then 
+        warn("Vexile VM Fatal: Attempted to call nil at PC="..pc)
+        return
+    end
+    
+    local B = i[3]
+    local results = {_pcall(func, __unpack(Stk, A + 1, B))}
+    
+    if results[1] then
+        local C = i[4]
+        if C == 1 then
+        elseif C == 2 then
+            Stk[A] = results[2]
+        else
+            local edx = 0
+            for idx = A, C do
+                edx = edx + 1
+                Stk[idx] = results[edx + 1]
+            end
+        end
+    else
+        warn("Vexile Execution Error: " .. tostring(results[2]))
+        error(results[2], 0)
+    end
+end,
             [7] = function(i) pc = #Inst + 1 end,
             [8] = function(i) Stk[i[2]] = Stk[i[3]] + Stk[i[4]] end,
             [9] = function(i) Stk[i[2]] = Stk[i[3]] - Stk[i[4]] end,
