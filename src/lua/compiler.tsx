@@ -45,15 +45,15 @@ export class Compiler {
     }
 
     private compileBlock(stats: Statement[]) {
-        stats.forEach(stat => {
-            // REGISTER RECYCLING: Resets the register pointer for every new statement
-            // This ensures temporary registers used in line 1 are reused in line 2
-            const baseReg = this.locals.length;
-            
-            switch (stat.type) {
-                case 'CallStatement':
-                    this.compileExpr(stat.expression, baseReg);
-                    break;
+    stats.forEach(stat => {
+        const baseReg = this.locals.length;
+        switch (stat.type) {
+            case 'Do':
+                this.compileBlock((stat as any).body);
+                break;
+            case 'CallStatement':
+                this.compileExpr(stat.expression, baseReg);
+                break;
                 case 'Local':
                     stat.init.forEach((expr, i) => {
                         this.compileExpr(expr, baseReg + i);

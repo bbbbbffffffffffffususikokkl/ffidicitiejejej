@@ -33,29 +33,37 @@ export class Parser {
         return t.value;
     }
 
-    private parseBlock(endKeywords: string[] = []): Statement[] {
-        const stats: Statement[] = [];
-        while (this.pos < this.tokens.length) {
-            const t = this.peek();
-            if (t.type === TokenType.EOF || endKeywords.includes(t.value)) break;
-            
-            if (t.value === 'local') stats.push(this.parseLocal());
-            else if (t.value === 'function') stats.push(this.parseFunction());
-            else if (t.value === 'return') { stats.push(this.parseReturn()); break; }
-            else if (t.value === 'if') stats.push(this.parseIf());
-            else {
-                const expr = this.parseExpr();
-                if (this.peek().value === '=') {
-                    this.consume();
-                    const val = this.parseExpr();
-                    stats.push({ type: 'Assignment', vars: [expr], init: [val] });
-                } else {
-                    stats.push({ type: 'CallStatement', expression: expr });
-                }
+   private parseBlock(endKeywords: string[] = []): Statement[] {
+    const stats: Statement[] = [];
+    while (this.pos < this.tokens.length) {
+        const t = this.peek();
+        if (t.type === TokenType.EOF || endKeywords.includes(t.value)) break;
+        
+        if (t.value === 'local') stats.push(this.parseLocal());
+        else if (t.value === 'function') stats.push(this.parseFunction());
+        else if (t.value === 'return') { stats.push(this.parseReturn()); break; }
+        else if (t.value === 'if') stats.push(this.parseIf());
+        else if (t.value === 'do') stats.push(this.parseDo()); 
+        else {
+            const expr = this.parseExpr();
+            if (this.peek().value === '=') {
+                this.consume();
+                const val = this.parseExpr();
+                stats.push({ type: 'Assignment', vars: [expr], init: [val] });
+            } else {
+                stats.push({ type: 'CallStatement', expression: expr });
             }
         }
-        return stats;
     }
+    return stats;
+}
+
+private parseDo(): Statement {
+    this.consume();
+    const body = this.parseBlock(['end']);
+    this.expect('end');
+    return { type: 'Do', body } as any; 
+}
 
     private parseLocal(): Statement {
         this.consume(); 
