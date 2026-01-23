@@ -1,7 +1,6 @@
 export function generateVM(bytecode: any): string {
-    const { code, constants, opMap } = bytecode;
+    const { code, constants } = bytecode;
     const instStr = code.map((i: any) => `{${i.op},${i.a},${i.b},${i.c}}`).join(',');
-    
     const constStr = constants.map((c: any) => {
         if (typeof c === 'string' && c.startsWith('(function')) return c;
         if (typeof c === 'string') return `[=[${c}]=]`;
@@ -14,42 +13,31 @@ export function generateVM(bytecode: any): string {
         local Inst, Const, Stk, Env = {${instStr}}, {${constStr}}, {}, getfenv()
         local pc = 1
         local ops = {
-            [${opMap.MOVE}] = function(i) Stk[i[2]] = Stk[i[3]] end,
-            [${opMap.LOADK}] = function(i) Stk[i[2]] = Const[i[3]+1] end,
-            [${opMap.GETGLOBAL}] = function(i) Stk[i[2]] = Env[Const[i[3]+1]] end,
-            [${opMap.SETGLOBAL}] = function(i) Env[Const[i[3]+1]] = Stk[i[2]] end,
-            [${opMap.GETTABLE}] = function(i) Stk[i[2]] = Stk[i[3]][Stk[i[4]]] end,
-            [${opMap.SETTABLE}] = function(i) Stk[i[2]][Stk[i[3]]] = Stk[i[4]] end,
-            [${opMap.NEWTABLE}] = function(i) Stk[i[2]] = {} end,
-            [${opMap.SETLIST}] = function(i) for j=1, i[3] do Stk[i[2]][i[4]+j-1] = Stk[i[2]+j] end end,
-            [${opMap.CALL}] = function(i) 
+            [0] = function(i) Stk[i[2]] = Stk[i[3]] end,
+            [1] = function(i) Stk[i[2]] = Const[i[3]+1] end,
+            [2] = function(i) Stk[i[2]] = Env[Const[i[3]+1]] end,
+            [3] = function(i) Env[Const[i[3]+1]] = Stk[i[2]] end,
+            [4] = function(i) Stk[i[2]] = Stk[i[3]][Stk[i[4]]] end,
+            [5] = function(i) Stk[i[2]][Stk[i[3]]] = Stk[i[4]] end,
+            [6] = function(i) 
                 local func = Stk[i[2]]
                 local args = {}
-                for j = 1, i[3] - 1 do
-                    args[j] = Stk[i[2] + j]
-                end
+                for j = 1, i[3] - 1 do args[j] = Stk[i[2] + j] end
                 local success, result = pcall(func, table.unpack(args))
-                if success then
-                    Stk[i[2]] = result
-                else
-                    error("Vexile VM Call Error: " .. tostring(result))
-                end
+                if success then Stk[i[2]] = result else error(result) end
             end,
-            [${opMap.RETURN}] = function(i) pc = #Inst + 1 return true end,
-            [${opMap.ADD}] = function(i) Stk[i[2]] = Stk[i[3]] + Stk[i[4]] end,
-            [${opMap.SUB}] = function(i) Stk[i[2]] = Stk[i[3]] - Stk[i[4]] end,
-            [${opMap.MUL}] = function(i) Stk[i[2]] = Stk[i[3]] * Stk[i[4]] end,
-            [${opMap.DIV}] = function(i) Stk[i[2]] = Stk[i[3]] / Stk[i[4]] end,
-            [${opMap.MOD}] = function(i) Stk[i[2]] = Stk[i[3]] % Stk[i[4]] end,
-            [${opMap.POW}] = function(i) Stk[i[2]] = Stk[i[3]] ^ Stk[i[4]] end,
-            [${opMap.UNM}] = function(i) Stk[i[2]] = -Stk[i[3]] end,
-            [${opMap.NOT}] = function(i) Stk[i[2]] = not Stk[i[3]] end,
-            [${opMap.LEN}] = function(i) Stk[i[2]] = #Stk[i[3]] end,
-            [${opMap.CONCAT}] = function(i) Stk[i[2]] = Stk[i[3]] .. Stk[i[4]] end,
-            [${opMap.EQ}] = function(i) if Stk[i[3]] ~= Stk[i[4]] then pc = pc + 1 end end,
-            [${opMap.LT}] = function(i) if not (Stk[i[3]] < Stk[i[4]]) then pc = pc + 1 end end,
-            [${opMap.LE}] = function(i) if not (Stk[i[3]] <= Stk[i[4]]) then pc = pc + 1 end end,
-            [${opMap.JMP}] = function(i) pc = pc + i[2] end
+            [7] = function(i) pc = #Inst + 1 end, -- RETURN
+            [8] = function(i) Stk[i[2]] = Stk[i[3]] + Stk[i[4]] end,
+            [9] = function(i) Stk[i[2]] = Stk[i[3]] - Stk[i[4]] end,
+            [10] = function(i) Stk[i[2]] = Stk[i[3]] * Stk[i[4]] end,
+            [11] = function(i) Stk[i[2]] = Stk[i[3]] / Stk[i[4]] end,
+            [14] = function(i) Stk[i[2]] = -Stk[i[3]] end,
+            [15] = function(i) Stk[i[2]] = not Stk[i[3]] end,
+            [16] = function(i) Stk[i[2]] = #Stk[i[3]] end,
+            [17] = function(i) Stk[i[2]] = Stk[i[3]] .. Stk[i[4]] end,
+            [18] = function(i) pc = pc + i[2] end,
+            [19] = function(i) if Stk[i[3]] ~= Stk[i[4]] then pc = pc + 1 end end,
+            [22] = function(i) Stk[i[2]] = {} end,
         }
         while pc <= #Inst do
             local i = Inst[pc]
@@ -58,6 +46,6 @@ export function generateVM(bytecode: any): string {
             if f then f(i) end
         end
     end
-    return VexileVM()
+    VexileVM()
     `.trim();
 }

@@ -7,19 +7,18 @@ export class Compiler {
     private constants: any[] = [];
     private locals: string[] = [];
     private settings: any;
+    
+    // Hardcoded Opcode Map to ensure VM synchronization
     private opMap = {
         MOVE: 0, LOADK: 1, GETGLOBAL: 2, SETGLOBAL: 3, 
         GETTABLE: 4, SETTABLE: 5, CALL: 6, RETURN: 7,
         ADD: 8, SUB: 9, MUL: 10, DIV: 11, MOD: 12, POW: 13, UNM: 14,
         NOT: 15, LEN: 16, CONCAT: 17, JMP: 18, EQ: 19, LT: 20, LE: 21,
-        NEWTABLE: 22, SETLIST: 23, FORLOOP: 24, FORPREP: 25
+        NEWTABLE: 22, SETLIST: 23
     };
 
     constructor(settings: any) {
         this.settings = settings;
-        const vals = Array.from({length: 26}, (_, i) => i).sort(() => Math.random() - 0.5);
-        let i = 0;
-        for (const k in this.opMap) { (this.opMap as any)[k] = vals[i++]; }
     }
 
     private addK(val: any) {
@@ -81,6 +80,7 @@ export class Compiler {
                 case 'If':
                     stat.clauses.forEach((clause) => {
                         this.compileExpr(clause.condition, baseReg);
+                        // Logic for Jumps in If would go here
                         this.compileBlock(clause.body);
                     });
                     break;
@@ -109,9 +109,7 @@ export class Compiler {
                 break;
             case 'Unary':
                 this.compileExpr(e.argument, reg);
-                const uOps: Record<string, keyof typeof this.opMap> = {
-                    'not': 'NOT', '#': 'LEN', '-': 'UNM'
-                };
+                const uOps: Record<string, keyof typeof this.opMap> = { 'not': 'NOT', '#': 'LEN', '-': 'UNM' };
                 if (uOps[e.operator]) this.emit(uOps[e.operator], reg, reg);
                 break;
             case 'Binary':
@@ -129,20 +127,18 @@ export class Compiler {
                         '%': 'MOD', '^': 'POW', '..': 'CONCAT',
                         '==': 'EQ', '<': 'LT', '<=': 'LE', '~=': 'EQ' 
                     };
-                    if (bOps[e.operator]) {
-                        this.emit(bOps[e.operator], reg, reg, reg + 1);
-                        // For ~=, we reuse EQ but logically flip the result if needed in VM
-                        // Or just handle the jump differently.
-                    }
+                    if (bOps[e.operator]) this.emit(bOps[e.operator], reg, reg, reg + 1);
                 }
                 break;
             case 'Member':
                 this.compileExpr(e.base, reg);
                 const keyR = reg + 1;
-                // Handle bracket indexer (e[1]) or dot indexer (e.prop)
-                const keyVal = e.indexer === '[' ? (e.identifier as any).value : ((e.identifier as any).name || (e.identifier as any).value);
-                this.emit('LOADK', keyR, this.addK(keyVal));
-                
+                if (e.indexer === '[') {
+                    this.compileExpr(e.identifier as any, keyR);
+                } else {
+                    const name = (e.identifier as any).name || (e.identifier as any).value;
+                    this.emit('LOADK', keyR, this.addK(name));
+                }
                 if (e.indexer === ':') {
                     this.emit('MOVE', reg + 1, reg); 
                     this.emit('GETTABLE', reg, reg, keyR);
