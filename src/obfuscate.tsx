@@ -26,14 +26,11 @@ export function obfuscateCode(code: string, engine: string, preset: string, cust
     const vReg = genVar(12);
     const vVM = genVar(12);
 
-    // 1. Generate Security Layers
     const deadCode1 = settings.deadCode ? getDeadCode(preset) : "";
     const parserBomb = settings.parserBomb ? getParserBomb(preset) : "";
-    
     const isPlus = settings.antiTamperPlus;
     const antiTamperSource = (isPlus || settings.antiTamper) ? getAntiTamper(vVM, vReg, preset) : "";
 
-    // 2. Build the Source
     const tamperPlusLoop = isPlus ? "\nwhile task.wait(2) do end" : "";
     const fullSource = `${antiTamperSource}\n${deadCode1}\n${tamperPlusLoop}\n${userCode}`;
 
@@ -41,11 +38,17 @@ export function obfuscateCode(code: string, engine: string, preset: string, cust
     if (settings.vmCompiler) {
         const compiler = new Compiler(settings);
         const bytecode = compiler.compile(fullSource);
-        
-        // --- FIX: We inject localization at the start of the VM body ---
+        let vmCode = generateVM(bytecode);
+
+        // FIX: Force localization and replace getfenv() with our randomized environment table
+        // This ensures 'Env' is never nil when the VM tries to find 'task' or 'print'
         finalContent = `
-        local _pcall, _unpack = pcall, table.unpack or unpack;
-        ${generateVM(bytecode).replace(/pcall\(/g, "_pcall(").replace(/table\.unpack\(/g, "_unpack(").replace(/unpack\(/g, "_unpack(")}
+        local _pcall = pcall;
+        local __unpack = table.unpack or unpack;
+        ${vmCode.replace(/getfenv\(\)/g, vVM)
+                .replace(/pcall\(/g, "_pcall(")
+                .replace(/table\.unpack\(/g, "__unpack(")
+                .replace(/unpack\(/g, "__unpack(")}
         `.trim();
     } else {
         finalContent = fullSource;
