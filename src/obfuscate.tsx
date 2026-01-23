@@ -21,36 +21,42 @@ function getSettings(preset: string, custom: ObfuscationSettings): ObfuscationSe
 export function obfuscateCode(code: string, engine: string, preset: string, customSettings: ObfuscationSettings): string {
     const settings = getSettings(preset, customSettings);
     
-    let processedCode = code.replace(/--.*$/gm, "").trim();
+    let userCode = code.replace(/--.*$/gm, "").trim();
+
+    // Generate the variable names used for the VM environment and registers
+    const vReg = genVar(12);
+    const vVM = genVar(12);
+
+    const antiTamperCode = settings.antiTamper ? getAntiTamper(vVM, vReg) : "";
+
+    const fullSource = `${antiTamperCode}\n${userCode}`;
 
     let vmScript = "";
     if (settings.vmCompiler) {
-        // Pass the settings into the compiler instance
-        const compiler = new Compiler(settings); 
-        const bytecode = compiler.compile(processedCode);
+        const compiler = new Compiler(settings);
+        const bytecode = compiler.compile(fullSource);
         vmScript = generateVM(bytecode);
     } else {
-        vmScript = processedCode;
+        vmScript = fullSource;
     }
 
-    const vReg = genVar(8);
-    const vVM = genVar(8);
-    
     const parserBomb = settings.parserBomb ? getParserBomb(preset) : "";
     const deadCode1 = settings.deadCode ? getDeadCode(preset) : "";
-    const antiTamper = settings.antiTamper ? getAntiTamper(vVM, vReg) : "";
 
     return `--[[ Protected with Vexile v3.0.0 ]]\n(function()
     ${parserBomb}
     ${deadCode1}
     local ${vReg} = {}
     local ${vVM} = {}
-    ${antiTamper}
+    
     ${vReg}[1] = function()
         ${vmScript}
     end
+    
     setfenv(${vReg}[1], ${vVM})
     local success, err = pcall(${vReg}[1])
-    if not success and err then print("Vexile Error: " .. tostring(err)) end
+    if not success and err then 
+        warn("Vexile Security: Implementation Error") 
+    end
 end)()`.trim();
 }
