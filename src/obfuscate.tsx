@@ -56,45 +56,37 @@ function getSettings(preset: string, custom: ObfuscationSettings): ObfuscationSe
 export function obfuscateCode(code: string, engine: string, preset: string, customSettings: ObfuscationSettings): string {
     const settings = getSettings(preset, customSettings);
     let userCode = code.replace(/--.*$/gm, "").trim();
-    
     const vReg = genVar(12);
     const vVM = genVar(12);
-    
     const deadCode1 = settings.deadCode ? getDeadCode(preset) : "";
     const parserBomb = settings.parserBomb ? getParserBomb(preset) : "";
-    
     const isPlus = settings.antiTamperPlus;
     const antiTamperSource = (isPlus || settings.antiTamper) ? `(function() ${getAntiTamper(vVM, vReg, preset)} end)();` : "";
     const tamperPlusLoop = isPlus ? "\nwhile task.wait(2) do end" : "";
-    
-    const fullSource = `${antiTamperSource}\n${deadCode1}\n${tamperPlusLoop}\n${userCode}`;
+    const fullSource = `${antiTamperSource}\n${deadCode1}\n${userCode}\n${tamperPlusLoop}`;
     let finalContent = "";
-    
     if (settings.vmCompiler) {
         const compiler = new Compiler(settings);
         const bytecode = compiler.compile(fullSource);
         let vmCode = generateVM(bytecode);
-        finalContent = `local ${vVM} = ...; local pcall, unpack = ${vVM}.pcall, ${vVM}.unpack; ${vmCode.replace(/getfenv\(\)/g, vVM)}`;
-    } else { 
-        finalContent = fullSource; 
-    }
-    const coreExecution = `setfenv(${vReg}[1], ${vVM}) local success, err = pcall(${vReg}[1], ${vVM}) if not success and err then warn("Vexile Fatal: " .. tostring(err)) end`;
-    
-    return `--[[ Protected with Vexile v1.0 ]]
+        finalContent = `local ${vVM} = ...; setfenv(1, ${vVM}); ${vmCode}`;
+    } else { finalContent = fullSource; }
+    const coreExecution = `local success, err = pcall(${vReg}[1], ${vVM}) if not success then warn("Vexile Fatal: " .. tostring(err)) end`;
+    return `--[[ Protected with Vexile v3.0.0 ]]
 ${isPlus ? "task.defer(function()" : "(function()"}
     ${parserBomb}
     local ${vReg}, ${vVM} = {}, {}
     local function bridge()
-        local env, globals = getfenv(0), (typeof and getgenv and getgenv()) or _G or {}
-        for k, v in pairs(globals) do ${vVM}[k] = v end
-        for k, v in pairs(env) do ${vVM}[k] = v end
-        ${vVM}["table"], ${vVM}["task"], ${vVM}["debug"] = table or globals.table, task or globals.task, debug or globals.debug
-        ${vVM}["unpack"] = unpack or (table and table.unpack) or globals.unpack
-        ${vVM}["bit32"], ${vVM}["getfenv"], ${vVM}["setfenv"] = bit32 or globals.bit32, getfenv or env.getfenv, setfenv or env.setfenv
-        ${vVM}["pairs"], ${vVM}["string"], ${vVM}["setmetatable"] = pairs or globals.pairs, string or globals.string, setmetatable or globals.setmetatable
-        ${vVM}["type"], ${vVM}["typeof"], ${vVM}["print"] = type, typeof, print or globals.print
-        ${vVM}["warn"], ${vVM}["tostring"], ${vVM}["pcall"], ${vVM}["error"] = warn or globals.warn, tostring or globals.tostring, pcall or globals.pcall, error or globals.error
-        ${vVM}["${vVM}"] = ${vVM}
+        local g = (typeof and getgenv and getgenv()) or _G or {}
+        local e = getfenv(0)
+        for k, v in pairs(g) do ${vVM}[k] = v end
+        for k, v in pairs(e) do ${vVM}[k] = v end
+        ${vVM}["debug"] = debug or g.debug
+        ${vVM}["task"] = task or g.task
+        ${vVM}["table"] = table or g.table
+        ${vVM}["pcall"] = pcall or g.pcall
+        ${vVM}["unpack"] = unpack or (table and table.unpack) or g.unpack
+        ${vVM}["_G"] = g
     end
     bridge()
     ${vReg}[1] = function(...) ${finalContent} end
