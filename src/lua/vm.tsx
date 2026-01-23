@@ -21,7 +21,7 @@ export function generateVM(bytecode: any): string {
             [5] = function(i) Stk[i[2]][Stk[i[3]]] = Stk[i[4]] end,
             [6] = function(i) 
                 local func = Stk[i[2]]
-                if not func then error("Vexile VM: Attempt to call nil (Op 6) at PC " .. pc) end
+                if not func then error("VM Error: Attempt to call nil (Op 6) at PC " .. pc) end
                 local args = {}
                 for j = 1, i[3] - 1 do args[j] = Stk[i[2] + j] end
                 local success, result = pcall(func, table.unpack(args))
