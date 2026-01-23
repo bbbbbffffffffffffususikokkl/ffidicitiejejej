@@ -37,6 +37,13 @@ export class Parser {
         const stats: Statement[] = [];
         while (this.pos < this.tokens.length) {
             const t = this.peek();
+            
+            // Handle optional semicolons (;) between statements
+            if (t.value === ';') {
+                this.consume();
+                continue;
+            }
+
             if (t.type === TokenType.EOF || endKeywords.includes(t.value)) break;
             
             if (t.value === 'local') stats.push(this.parseLocal());
@@ -59,7 +66,7 @@ export class Parser {
     }
 
     private parseDo(): Statement {
-        this.consume(); // consume 'do'
+        this.consume(); 
         const body = this.parseBlock(['end']);
         this.expect('end');
         return { type: 'Do', body } as any; 
@@ -110,6 +117,10 @@ export class Parser {
             expr = { type: 'Identifier', name: t.value } as any;
         } else if (t.value === '{') {
             expr = this.parseTable();
+        } else if (t.value === '(') {
+            this.consume();
+            expr = this.parseExpr();
+            this.expect(')');
         } else {
             throw new Error(`Unexpected token '${t.value}' at line ${t.line}`);
         }
@@ -134,6 +145,11 @@ export class Parser {
                 }
                 this.expect(')');
                 expr = { type: 'Call', base: expr, args } as any;
+            } else if (next === '[') {
+                this.consume();
+                const index = this.parseExpr();
+                this.expect(']');
+                expr = { type: 'Member', base: expr, indexer: '[', identifier: index } as any;
             } else {
                 break;
             }
@@ -152,8 +168,8 @@ export class Parser {
                 this.expect('=');
                 const value = this.parseExpr();
                 fields.push({ key, value });
-            } else if (this.peek(1).value === '=') {
-                const key = { type: 'String', value: this.expectIdentifier() };
+            } else if (this.peek().type === TokenType.Identifier && this.peek(1).value === '=') {
+                const key = { type: 'String', value: this.consume().value };
                 this.expect('=');
                 const value = this.parseExpr();
                 fields.push({ key, value });
@@ -197,18 +213,29 @@ export class Parser {
 
     private parseFunction(): Statement { 
         this.consume();
-        const name = this.expectIdentifier(); 
+        const t = this.peek();
+        let name: any;
+        if (t.type === TokenType.Identifier) {
+            name = { type: 'Identifier', name: this.consume().value };
+        }
         this.expect('(');
+        const params: string[] = [];
+        if (this.peek().value !== ')') {
+            do {
+                params.push(this.expectIdentifier());
+            } while (this.peek().value === ',' && this.consume());
+        }
         this.expect(')');
         const body = this.parseBlock(['end']);
         this.expect('end');
-        return { type: 'Function', name: { type: 'Identifier', name }, params: [], body, isLocal: false } as any;
+        return { type: 'Function', name, params, body } as any;
     }
 
     private parseReturn(): Statement { 
         this.consume();
         const args: Expression[] = [];
-        if (!['end', 'elseif', 'else'].includes(this.peek().value)) {
+        const next = this.peek().value;
+        if (next !== 'end' && next !== 'elseif' && next !== 'else' && this.peek().type !== TokenType.EOF) {
             do {
                 args.push(this.parseExpr());
             } while (this.peek().value === ',' && this.consume());
@@ -216,12 +243,12 @@ export class Parser {
         return { type: 'Return', args } as any; 
     }
 
-    private isBinOp(op: string) { return ['+', '-', '*', '/', '..', '==', '>', '<', '<=', '>='].includes(op); }
+    private isBinOp(op: string) { return ['+', '-', '*', '/', '..', '==', '>', '<', '<=', '>=', '~='].includes(op); }
     private getPrecedence(op: string) {
         if (op === '..') return 4;
         if (['+', '-'].includes(op)) return 5;
         if (['*', '/'].includes(op)) return 6;
-        if (['==', '>', '<', '<=', '>='].includes(op)) return 3;
+        if (['==', '>', '<', '<=', '>=', '~='].includes(op)) return 3;
         return 0; 
     }
 }
