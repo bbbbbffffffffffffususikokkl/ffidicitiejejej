@@ -3,8 +3,9 @@
 const hex = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ";
 
 export function genVar(len: number = 8): string {
+    const hex = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ";
     let res = "";
-    for (let i = 0; i < hex.length; i++) res += hex[Math.floor(Math.random() * hex.length)];
+    for (let i = 0; i < len; i++) res += hex[Math.floor(Math.random() * hex.length)];
     return res;
 }
 
