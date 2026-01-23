@@ -165,14 +165,19 @@ export class Compiler {
                 this.compileExpr(e.base, reg); 
                 
                 const argOffset = isMethod ? 1 : 0;
-                // FIX: Ensure args are compiled into specific sequential registers
-                // without being overwritten by temporary evaluations
                 e.args.forEach((arg, i) => {
                     this.compileExpr(arg, reg + argOffset + i + 1);
                 });
+
+                // --- IRONBREW MUTATION LOGIC ---
+                // In OpCall.cs, Register B is mutated: instruction.B += instruction.A - 1
+                const mutatedB = (e.args.length + 1 + argOffset) + reg - 1;
                 
-                // Opcode 6 (CALL): A = function reg, B = num args + 1, C = num returns
-                this.emit('CALL', reg, e.args.length + 1 + argOffset, 1);
+                // We use C=1 for now (no returns used) or C=2 (one return)
+                // In OpCall, C is often mutated: instruction.C += instruction.A - 2
+                const mutatedC = 2 + reg - 2; 
+
+                this.emit('CALL', reg, mutatedB, mutatedC);
                 break;
             case 'Table':
                 this.emit('NEWTABLE', reg, 0, 0);
