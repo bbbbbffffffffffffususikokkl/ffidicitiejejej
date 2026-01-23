@@ -6,8 +6,8 @@ export function getDeadCode(preset: string): string {
     if (preset === "Test") return "";
     
     let count = 2000;
-    if (preset === "Medium") count = 4000
-    if (preset === "High" || preset === "Custom") count = 6000
+    if (preset === "Medium") count = 3000
+    if (preset === "High" || preset === "Custom") count = 4000
     let junk = "";
     
     const tbl = genVar(8);

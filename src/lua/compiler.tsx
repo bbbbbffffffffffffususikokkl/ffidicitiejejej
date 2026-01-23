@@ -70,6 +70,13 @@ export class Compiler {
                         }
                     });
                     break;
+                case 'If':
+                    stat.clauses.forEach((clause) => {
+                        this.compileExpr(clause.condition, reg);
+                        // Simplified JMP logic for If
+                        this.compileBlock(clause.body);
+                    });
+                    break;
                 case 'Return':
                     stat.args.forEach((arg, i) => this.compileExpr(arg, reg + i));
                     this.emit('RETURN', reg, stat.args.length + 1);
@@ -106,7 +113,11 @@ export class Compiler {
             case 'Member':
                 this.compileExpr(e.base, reg);
                 const kReg = reg + 1;
-                this.compileExpr(e.identifier, kReg);
+                if (e.identifier.type === 'Identifier') {
+                    this.emit('LOADK', kReg, this.addK(e.identifier.name));
+                } else {
+                    this.compileExpr(e.identifier, kReg);
+                }
                 this.emit('GETTABLE', reg, reg, kReg);
                 break;
             case 'Call':
@@ -124,7 +135,8 @@ export class Compiler {
                         this.compileExpr(field.key, keyReg);
                         this.emit('SETTABLE', reg, keyReg, valReg);
                     } else {
-                        this.emit('SETLIST', reg, i + 1, 1);
+                        this.emit('LOADK', reg + 2, this.addK(i + 1));
+                        this.emit('SETTABLE', reg, reg + 2, valReg);
                     }
                 });
                 break;
