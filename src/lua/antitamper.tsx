@@ -19,28 +19,18 @@ export function getParserBomb(preset: string): string {
     return `local ${genVar()} = ${bomb};`;
 }
 
-export function getAntiTamper(vmName: string, regName: string): string {
-    return `
+export function getAntiTamper(vmName: string, regName: string, preset: string): string {
+    const logic = `
     do
-        local t = task or {
-            defer = function(f) f() end,
-            wait = function() end,
-            spawn = function(f) f() end
-        }
-        
-        local x={t.defer, t.wait, t.spawn, debug.getinfo, getfenv, setmetatable, pcall}
-        
-        if task then
-            local a=false;x[1](function()a=true end);x[2]()
-            if not a then print("dtc: timing") return error() end
-        end
-        
-        if x[4] then
-            local c=x[4](x[7])
-            if not c or c.what~="C" then print("dtc: native hook") return error() end
-        end
-        
-        print("Passed")
+        local x={task.defer,task.wait,task.spawn,debug.getinfo,getfenv,setmetatable,pcall}
+        local a=false;x[1](function()a=true end);x[2]()if not a then print("dtc")return error()end
+        local b=false;x[7](function()b=true end)if not b then print("dtc")return error()end
+        local c=x[4](x[2])if not c or c.what~="C"then print("dtc")return error()end
+        local d=false;x[3](function()d=true end);x[2]()if not d then print("dtc")return error()end
+        if x[5]then local e=x[5](0)if e.CHECKINDEX or e._G~=_G then print("dtc")return error()end end
+        local f=x[6]({},{__index=function()return true end})if not f.test then print("dtc")return error()end
     end
     `;
+
+    return logic;
 }
