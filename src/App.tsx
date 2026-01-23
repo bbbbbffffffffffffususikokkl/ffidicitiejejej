@@ -1,5 +1,5 @@
 import { useState, useRef } from 'react';
-import { Shield, Sword, Zap, Copy, Check, Download, Upload, Settings, Braces, Terminal, FileCode, Lock } from 'lucide-react'; 
+import { Shield, Sword, Zap, Copy, Check, Download, Upload, Settings, Info } from 'lucide-react'; 
 import { obfuscateCode } from './obfuscate';
 
 const PRESETS = {
@@ -179,12 +179,12 @@ export default function App() {
               {[
                 { id: 'stringEncryption', label: 'String Encryption' },
                 { id: 'antiTamper', label: 'Anti Tamper' },
-                { id: 'antiTamperPlus', label: 'Anti Tamper+', tip: "If your obfuscated code breaks, turn this off." },
+                { id: 'antiTamperPlus', label: 'Anti Tamper+', tip: "If your obfuscated code breaks, turn this setting off." },
                 { id: 'deadCode', label: 'Dead Code' },
                 { id: 'vmCompiler', label: 'VM Compiler' },
                 { id: 'parserBomb', label: 'Parser Bomb' },
               ].map((item) => (
-                <div key={item.id} className="relative group/tip flex items-center">
+                <div key={item.id} className="flex items-center gap-2">
                   <label className="flex items-center gap-3 cursor-pointer group">
                     <div 
                       onClick={() => toggleSetting(item.id as keyof typeof customSettings)}
@@ -196,18 +196,20 @@ export default function App() {
                     >
                       {customSettings[item.id as keyof typeof customSettings] && <Check className="w-3.5 h-3.5 text-white" strokeWidth={3} />}
                     </div>
-                    <div className="flex items-center gap-2">
-                        <span className="text-neutral-500 group-hover:text-indigo-400 transition-colors">{item.icon}</span>
-                        <span className="text-sm text-neutral-300 group-hover:text-white transition-colors">{item.label}</span>
-                    </div>
+                    <span className="text-sm text-neutral-300 group-hover:text-white transition-colors">{item.label}</span>
                   </label>
 
-                  {/* Tooltip Popup */}
-                  <div className="absolute bottom-full left-0 mb-2 hidden group-hover/tip:block z-50 animate-in fade-in slide-in-from-bottom-1 duration-200">
-                    <div className="bg-neutral-800 border border-neutral-700 text-neutral-200 text-[11px] px-3 py-1.5 rounded-lg shadow-2xl whitespace-nowrap">
-                      {item.tip}
+                  {item.tip && (
+                    <div className="relative group/tip">
+                      <Info className="w-3.5 h-3.5 text-neutral-600 hover:text-indigo-400 cursor-help transition-colors" />
+                      <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover/tip:block z-50 animate-in fade-in zoom-in duration-200">
+                        <div className="bg-neutral-800 border border-neutral-700 text-neutral-200 text-[10px] px-2 py-1 rounded shadow-2xl whitespace-nowrap">
+                          {item.tip}
+                          <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-neutral-800" />
+                        </div>
+                      </div>
                     </div>
-                  </div>
+                  )}
                 </div>
               ))}
             </div>
@@ -237,7 +239,6 @@ export default function App() {
         <div className="space-y-2">
           <div className="flex items-center justify-between ml-1">
              <label className="text-xs font-bold uppercase tracking-wider text-neutral-500">Input Code</label>
-             
              <input 
                type="file" 
                ref={fileInputRef}
@@ -245,7 +246,6 @@ export default function App() {
                className="hidden"
                accept=".lua,.txt,.js"
              />
-             
              <button 
                 onClick={triggerFileUpload}
                 className="flex items-center gap-1.5 text-xs font-medium text-neutral-400 hover:text-indigo-400 transition-colors"
@@ -254,7 +254,6 @@ export default function App() {
                 Upload File
              </button>
           </div>
-          
           <textarea
             value={inputCode}
             onChange={(e) => {
@@ -278,7 +277,6 @@ export default function App() {
           <div className="space-y-2 animate-in slide-in-from-bottom-4 duration-500">
             <div className="flex items-center justify-between ml-1">
               <label className="text-xs font-bold uppercase tracking-wider text-emerald-500">Obfuscated Result</label>
-              
               <div className="flex items-center gap-4">
                 <button 
                   onClick={handleDownload}
@@ -287,7 +285,6 @@ export default function App() {
                   <Download className="w-3 h-3" />
                   Download File
                 </button>
-
                 <button 
                   onClick={handleCopy}
                   className="flex items-center gap-1.5 text-xs font-medium text-neutral-400 hover:text-white transition-colors"
@@ -296,7 +293,6 @@ export default function App() {
                   {isCopied ? "Copied!" : "Copy to Clipboard"}
                 </button>
               </div>
-
             </div>
             <div className="relative group">
               <textarea
@@ -308,7 +304,6 @@ export default function App() {
             </div>
           </div>
         )}
-
       </div>
     </div>
   );
