@@ -41,14 +41,12 @@ export function obfuscateCode(code: string, engine: string, preset: string, cust
 
         finalContent = `
         local _pcall = pcall;
-        local _unpack = table.unpack or unpack;
+        local __unpack = table.unpack or unpack;
         ${vmCode.replace(/getfenv\(\)/g, vVM)
                 .replace(/pcall\(/g, "_pcall(")
-                .replace(/table\.unpack\(/g, "_unpack(")
-                .replace(/unpack\(/g, "_unpack(")}
+                .replace(/table\.unpack\(/g, "__unpack(")
+                .replace(/unpack\(/g, "__unpack(")}
         `.trim();
-    } else {
-        finalContent = fullSource;
     }
 
     const innerExecution = `
