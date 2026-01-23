@@ -72,6 +72,9 @@ export function obfuscateCode(code: string, engine: string, preset: string, cust
         for k, v in pairs(globals) do ${vVM}[k] = v end
         for k, v in pairs(env) do ${vVM}[k] = v end
         
+        ${vVM}["table"] = table or globals.table
+        ${vVM}["unpack"] = unpack or (table and table.unpack) or globals.unpack
+        
         ${vVM}["task"] = task or globals.task
         ${vVM}["bit32"] = bit32 or globals.bit32
         ${vVM}["getfenv"] = getfenv or env.getfenv
@@ -79,6 +82,8 @@ export function obfuscateCode(code: string, engine: string, preset: string, cust
         ${vVM}["pairs"] = pairs or globals.pairs
         ${vVM}["string"] = string or globals.string
         ${vVM}["setmetatable"] = setmetatable or globals.setmetatable
+        ${vVM}["type"] = type
+        ${vVM}["typeof"] = typeof
 
         ${vVM}["${vVM}"] = ${vVM}
     end
