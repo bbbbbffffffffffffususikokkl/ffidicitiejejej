@@ -38,7 +38,6 @@ export class Parser {
         while (this.pos < this.tokens.length) {
             const t = this.peek();
             
-            // Handle optional semicolons (;) between statements
             if (t.value === ';') {
                 this.consume();
                 continue;
@@ -50,6 +49,7 @@ export class Parser {
             else if (t.value === 'function') stats.push(this.parseFunction() as any);
             else if (t.value === 'return') { stats.push(this.parseReturn() as any); break; }
             else if (t.value === 'if') stats.push(this.parseIf() as any);
+            else if (t.value === 'while') stats.push(this.parseWhile()); // Added While handling
             else if (t.value === 'do') stats.push(this.parseDo()); 
             else {
                 const expr = this.parseExpr();
@@ -63,6 +63,16 @@ export class Parser {
             }
         }
         return stats;
+    }
+
+    // New: Handles 'while <expr> do <body> end'
+    private parseWhile(): Statement {
+        this.consume(); // consume 'while'
+        const condition = this.parseExpr();
+        this.expect('do');
+        const body = this.parseBlock(['end']);
+        this.expect('end');
+        return { type: 'While', condition, body } as any;
     }
 
     private parseDo(): Statement {
@@ -100,8 +110,7 @@ export class Parser {
         let t = this.peek();
         let expr: Expression | null = null;
 
-        // UNARY OPERATOR SUPPORT (not, #, -)
-        if (t.value === 'not' || t.value === '#' || (t.value === '-' && t.type === TokenType.Symbol)) {
+        if (t.value === 'not' || t.value === '#' || (t.value === '-' && t.type === TokenType.Operator)) {
             const operator = this.consume().value;
             const argument = this.parsePrimary();
             return { type: 'Unary', operator, argument } as any;
@@ -134,7 +143,6 @@ export class Parser {
             throw new Error(`Unexpected token '${t.value}' at line ${t.line}`);
         }
 
-        // Handle Suffixes (Member access, Table indexing, and Calls)
         while (true) {
             const next = this.peek().value;
             if (next === '.') {
@@ -225,7 +233,6 @@ export class Parser {
         this.consume();
         const t = this.peek();
         let name: any = null;
-        // Check for named function vs anonymous
         if (t.type === TokenType.Identifier) {
             name = { type: 'Identifier', name: this.consume().value };
         }
@@ -255,16 +262,16 @@ export class Parser {
     }
 
     private isBinOp(op: string) { 
-    return ['+', '-', '*', '/', '..', '==', '>', '<', '<=', '>=', '~=', 'and', 'or'].includes(op); 
-}
+        return ['+', '-', '*', '/', '..', '==', '>', '<', '<=', '>=', '~=', 'and', 'or'].includes(op); 
+    }
 
-private getPrecedence(op: string) {
-    if (op === 'or') return 1;
-    if (op === 'and') return 2;
-    if (['==', '>', '<', '<=', '>=', '~='].includes(op)) return 3;
-    if (op === '..') return 4;
-    if (['+', '-'].includes(op)) return 5;
-    if (['*', '/'].includes(op)) return 6;
-    return 0; 
-}
+    private getPrecedence(op: string) {
+        if (op === 'or') return 1;
+        if (op === 'and') return 2;
+        if (['==', '>', '<', '<=', '>=', '~='].includes(op)) return 3;
+        if (op === '..') return 4;
+        if (['+', '-'].includes(op)) return 5;
+        if (['*', '/'].includes(op)) return 6;
+        return 0; 
+    }
 }
