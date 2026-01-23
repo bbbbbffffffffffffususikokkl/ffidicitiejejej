@@ -29,10 +29,19 @@ export type Statement =
     | { type: 'Assignment', vars: Expression[], init: Expression[] }
     | { type: 'Local', vars: string[], init: Expression[] }
     | { type: 'CallStatement', expression: Expression }
-    | { type: 'Function', name: Expression | null, params: string[], body: Statement[] }
-    | { type: 'If', clauses: { condition: Expression, body: Statement[] }[] }
+    | { type: 'Function', name: Expression, params: string[], body: Statement[], isLocal: boolean }
+    | { type: 'If', clauses: IfClause[], elseBody?: Statement[] }
     | { type: 'While', condition: Expression, body: Statement[] }
-    | { type: 'Return', args: Expression[] };
+    | { type: 'Repeat', condition: Expression, body: Statement[] }
+    | { type: 'ForNumeric', variable: string, start: Expression, end: Expression, step?: Expression, body: Statement[] }
+    | { type: 'ForGeneric', variables: string[], iterators: Expression[], body: Statement[] }
+    | { type: 'Return', args: Expression[] }
+    | { type: 'Break' };
+
+export interface IfClause {
+    condition: Expression;
+    body: Statement[];
+}
 
 export type Expression = 
     | { type: 'Identifier', name: string }
@@ -40,8 +49,16 @@ export type Expression =
     | { type: 'Number', value: number }
     | { type: 'Boolean', value: boolean }
     | { type: 'Nil' }
+    | { type: 'Vararg' }
     | { type: 'Binary', left: Expression, operator: string, right: Expression }
+    | { type: 'Unary', operator: string, argument: Expression }
     | { type: 'Call', base: Expression, args: Expression[] }
+    | { type: 'Table', fields: TableField[] }
     | { type: 'Member', base: Expression, indexer: string, identifier: Expression }
-    | { type: 'Table', fields: { key?: Expression, value: Expression }[] }
-    | { type: 'Vararg' };
+    | { type: 'FunctionExpression', params: string[], body: Statement[] };
+
+export interface TableField {
+    type: 'TableKey' | 'TableKeyString' | 'TableValue';
+    key?: Expression;
+    value: Expression;
+}

@@ -3,9 +3,11 @@
 import { genVar, obfNum } from './antitamper';
 
 export function getDeadCode(preset: string): string {
-    if (preset === "Test" || preset === "Fast") return "";
+    if (preset === "Test") return "";
     
-    const count = preset === "High" ? 15 : 5;
+    const count = 2000;
+    if (preset === "Medium") count = 4000
+    if (preset === "High" || preset === "Custom") count = 6000
     let junk = "";
     
     const tbl = genVar(8);
