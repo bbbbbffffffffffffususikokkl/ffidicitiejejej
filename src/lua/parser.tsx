@@ -33,37 +33,37 @@ export class Parser {
         return t.value;
     }
 
-   private parseBlock(endKeywords: string[] = []): Statement[] {
-    const stats: Statement[] = [];
-    while (this.pos < this.tokens.length) {
-        const t = this.peek();
-        if (t.type === TokenType.EOF || endKeywords.includes(t.value)) break;
-        
-        if (t.value === 'local') stats.push(this.parseLocal());
-        else if (t.value === 'function') stats.push(this.parseFunction());
-        else if (t.value === 'return') { stats.push(this.parseReturn()); break; }
-        else if (t.value === 'if') stats.push(this.parseIf());
-        else if (t.value === 'do') stats.push(this.parseDo()); 
-        else {
-            const expr = this.parseExpr();
-            if (this.peek().value === '=') {
-                this.consume();
-                const val = this.parseExpr();
-                stats.push({ type: 'Assignment', vars: [expr], init: [val] });
-            } else {
-                stats.push({ type: 'CallStatement', expression: expr });
+    private parseBlock(endKeywords: string[] = []): Statement[] {
+        const stats: Statement[] = [];
+        while (this.pos < this.tokens.length) {
+            const t = this.peek();
+            if (t.type === TokenType.EOF || endKeywords.includes(t.value)) break;
+            
+            if (t.value === 'local') stats.push(this.parseLocal());
+            else if (t.value === 'function') stats.push(this.parseFunction());
+            else if (t.value === 'return') { stats.push(this.parseReturn()); break; }
+            else if (t.value === 'if') stats.push(this.parseIf());
+            else if (t.value === 'do') stats.push(this.parseDo()); 
+            else {
+                const expr = this.parseExpr();
+                if (this.peek().value === '=') {
+                    this.consume();
+                    const val = this.parseExpr();
+                    stats.push({ type: 'Assignment', vars: [expr], init: [val] } as any);
+                } else {
+                    stats.push({ type: 'CallStatement', expression: expr } as any);
+                }
             }
         }
+        return stats;
     }
-    return stats;
-}
 
-private parseDo(): Statement {
-    this.consume();
-    const body = this.parseBlock(['end']);
-    this.expect('end');
-    return { type: 'Do', body } as any; 
-}
+    private parseDo(): Statement {
+        this.consume(); // consume 'do'
+        const body = this.parseBlock(['end']);
+        this.expect('end');
+        return { type: 'Do', body } as any; 
+    }
 
     private parseLocal(): Statement {
         this.consume(); 
@@ -73,7 +73,7 @@ private parseDo(): Statement {
             this.consume();
             init.push(this.parseExpr());
         }
-        return { type: 'Local', vars: [name], init };
+        return { type: 'Local', vars: [name], init } as any;
     }
 
     private parseExpr(minPrec = 0): Expression {
@@ -84,7 +84,7 @@ private parseDo(): Statement {
             if (prec < minPrec) break;
             this.consume();
             const right = this.parseExpr(prec + 1);
-            left = { type: 'Binary', left, operator: op, right };
+            left = { type: 'Binary', left, operator: op, right } as any;
         }
         return left;
     }
@@ -95,19 +95,21 @@ private parseDo(): Statement {
 
         if (t.type === TokenType.Number) {
             this.consume();
-            expr = { type: 'Number', value: Number(t.value) };
+            expr = { type: 'Number', value: Number(t.value) } as any;
         } else if (t.type === TokenType.String) {
             this.consume();
-            expr = { type: 'String', value: t.value };
+            expr = { type: 'String', value: t.value } as any;
         } else if (t.value === 'true' || t.value === 'false') {
             this.consume();
-            expr = { type: 'Boolean', value: t.value === 'true' };
+            expr = { type: 'Boolean', value: t.value === 'true' } as any;
         } else if (t.value === 'nil') {
             this.consume();
-            expr = { type: 'Nil' };
+            expr = { type: 'Nil' } as any;
         } else if (t.type === TokenType.Identifier) {
             this.consume();
-            expr = { type: 'Identifier', name: t.value };
+            expr = { type: 'Identifier', name: t.value } as any;
+        } else if (t.value === '{') {
+            expr = this.parseTable();
         } else {
             throw new Error(`Unexpected token '${t.value}' at line ${t.line}`);
         }
@@ -117,11 +119,11 @@ private parseDo(): Statement {
             if (next === '.') {
                 this.consume();
                 const id = this.expectIdentifier();
-                expr = { type: 'Member', base: expr, indexer: '.', identifier: { type: 'Identifier', name: id } };
+                expr = { type: 'Member', base: expr, indexer: '.', identifier: { type: 'Identifier', name: id } } as any;
             } else if (next === ':') {
                 this.consume();
                 const id = this.expectIdentifier();
-                expr = { type: 'Member', base: expr, indexer: ':', identifier: { type: 'Identifier', name: id } };
+                expr = { type: 'Member', base: expr, indexer: ':', identifier: { type: 'Identifier', name: id } } as any;
             } else if (next === '(') {
                 this.consume();
                 const args: Expression[] = [];
@@ -131,12 +133,43 @@ private parseDo(): Statement {
                     } while (this.peek().value === ',' && this.consume());
                 }
                 this.expect(')');
-                expr = { type: 'Call', base: expr, args };
+                expr = { type: 'Call', base: expr, args } as any;
             } else {
                 break;
             }
         }
-        return expr;
+        return expr!;
+    }
+
+    private parseTable(): Expression {
+        this.expect('{');
+        const fields: any[] = [];
+        while (this.peek().value !== '}') {
+            if (this.peek().value === '[') {
+                this.consume();
+                const key = this.parseExpr();
+                this.expect(']');
+                this.expect('=');
+                const value = this.parseExpr();
+                fields.push({ key, value });
+            } else if (this.peek(1).value === '=') {
+                const key = { type: 'String', value: this.expectIdentifier() };
+                this.expect('=');
+                const value = this.parseExpr();
+                fields.push({ key, value });
+            } else {
+                const value = this.parseExpr();
+                fields.push({ key: null, value });
+            }
+
+            if (this.peek().value === ',' || this.peek().value === ';') {
+                this.consume();
+            } else {
+                break;
+            }
+        }
+        this.expect('}');
+        return { type: 'Table', fields } as any;
     }
 
     private parseIf(): Statement {
@@ -156,10 +189,10 @@ private parseDo(): Statement {
         }
         if (this.peek().value === 'else') {
             this.consume();
-            clauses.push({ condition: { type: 'Boolean', value: true } as Expression, body: this.parseBlock(['end']) });
+            clauses.push({ condition: { type: 'Boolean', value: true } as any, body: this.parseBlock(['end']) });
         }
         this.expect('end');
-        return { type: 'If', clauses };
+        return { type: 'If', clauses } as any;
     }
 
     private parseFunction(): Statement { 
@@ -169,7 +202,7 @@ private parseDo(): Statement {
         this.expect(')');
         const body = this.parseBlock(['end']);
         this.expect('end');
-        return { type: 'Function', name: { type: 'Identifier', name }, params: [], body, isLocal: false };
+        return { type: 'Function', name: { type: 'Identifier', name }, params: [], body, isLocal: false } as any;
     }
 
     private parseReturn(): Statement { 
@@ -180,7 +213,7 @@ private parseDo(): Statement {
                 args.push(this.parseExpr());
             } while (this.peek().value === ',' && this.consume());
         }
-        return { type: 'Return', args }; 
+        return { type: 'Return', args } as any; 
     }
 
     private isBinOp(op: string) { return ['+', '-', '*', '/', '..', '==', '>', '<', '<=', '>='].includes(op); }
