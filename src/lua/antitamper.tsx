@@ -34,14 +34,5 @@ export function getAntiTamper(vmName: string, regName: string): string {
         if x[5]then local e=x[5](0)if e.CHECKINDEX or e._G~=_G then print("env dtc")return error()end end
         local f=x[6]({},{__index=function()return true end})if not f.test then print("env dtc")return error()end
     end
-
-    setmetatable(${vmName}, {
-      __index = function(t, k)
-        if k == "game" or k == "Enum" or k == "math" or k == "table" or k == "string" then 
-            return getfenv(0)[k] 
-        end
-        return getfenv(0)[k]
-      end,
-      __metatable = "Locked"
-    })`;
+    `;
 }
