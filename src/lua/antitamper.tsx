@@ -22,12 +22,12 @@ export function getParserBomb(preset: string): string {
 export function getAntiTamper(vmName: string, regName: string, preset: string): string {
     const logic = `
     do
-        local t_defer = task.defer
-        local t_wait = task.wait
-        local success = false
-        t_defer(function() success = true end)
-        t_wait()
-        if not success then return error("Tamper Detected!") end
+        local ok, no = false, false
+        pcall(error)
+        ok = true
+        task.defer(function() no = true end)
+        task.wait()
+        if not (ok and no) then error("Tamper Detected!") end
 
         local ginfo = debug.getinfo
         local getf = getfenv
