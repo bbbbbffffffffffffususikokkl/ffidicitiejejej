@@ -2,30 +2,22 @@
 // By Vexile
 import { genVar, obfNum } from './antitamper';
 
+import { genVar, obfNum } from './antitamper';
+
 export function getDeadCode(preset: string): string {
     if (preset === "Test") return "";
     
-    let count = 2000;
-    if (preset === "Medium") count = 3000;
-    if (preset === "High" || preset === "Custom") count = 4000;
-    
-    const globalJunk = "_G." + genVar(8);
-    let junk = `${globalJunk} = {};\n`;
+    let count = (preset === "High" || preset === "Custom") ? 4000 : 2000;
+    const g = "_G." + genVar(8);
+    let junk = `${g} = {}; `;
     
     for (let i = 0; i < count; i++) {
-        const op = Math.random();
-        const key = obfNum(Math.floor(Math.random() * 500));
-        const val = obfNum(Math.floor(Math.random() * 1000));
+        const k = Math.floor(Math.random() * 500);
+        const v = Math.floor(Math.random() * 1000);
         
-        if (op > 0.6) {
-            junk += `${globalJunk}[${key}] = (${globalJunk}[${key}] or 0) + ${val}; `;
-        } else if (op > 0.3) {
-            junk += `if ${globalJunk}[${key}] == nil then ${globalJunk}[${key}] = ${val} end; `;
-        } else {
-            junk += `local _ = ${globalJunk}[${key}]; `; // This single '_' is reused
-        }
-
-        if (i % 15 === 0) junk += "\n";
+        junk += `${g}[${obfNum(k)}] = (${g}[${obfNum(k)}] or ${obfNum(0)}) + ${obfNum(v)}; `;
+        
+        if (i % 20 === 0) junk += "\n";
     }
     
     return junk;

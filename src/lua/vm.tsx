@@ -1,11 +1,13 @@
-// Virtual Machine
-// By Vexile
 export function generateVM(bytecode: any): string {
     const { code, constants, opMap } = bytecode;
     const instStr = code.map((i: any) => `{${i.op},${i.a},${i.b},${i.c}}`).join(',');
     
-    // Using [=[ and ]=] handles nested quotes and multiple lines perfectly.
+    // We wrap each encrypted string in an anonymous call so it 
+    // decrypts BEFORE the VM starts.
     const constStr = constants.map((c: any) => {
+        if (typeof c === 'string' && c.startsWith('(function')) {
+            return c; // It's already an executable string function
+        }
         if (typeof c === 'string') return `[=[${c}]=]`;
         if (c === null) return "nil";
         return `${c}`;
@@ -25,12 +27,13 @@ export function generateVM(bytecode: any): string {
             [${opMap.NEWTABLE}] = function(i) Stk[i[2]] = {} end,
             [${opMap.SETLIST}] = function(i) for j=1, i[3] do Stk[i[2]][i[4]+j-1] = Stk[i[2]+j] end end,
             [${opMap.CALL}] = function(i) 
+                local func = Stk[i[2]]
                 local args = {}
                 for j=1, i[3]-1 do args[j] = Stk[i[2]+j] end
-                local res = {Stk[i[2]](table.unpack(args))}
+                local res = {func(table.unpack(args))}
                 Stk[i[2]] = res[1]
             end,
-            [${opMap.RETURN}] = function(i) pc = #Inst + 1 return true, Stk[i[2]] end,
+            [${opMap.RETURN}] = function(i) pc = #Inst + 1 return true end,
             [${opMap.ADD}] = function(i) Stk[i[2]] = Stk[i[3]] + Stk[i[4]] end,
             [${opMap.SUB}] = function(i) Stk[i[2]] = Stk[i[3]] - Stk[i[4]] end,
             [${opMap.MUL}] = function(i) Stk[i[2]] = Stk[i[3]] * Stk[i[4]] end,

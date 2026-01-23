@@ -1,32 +1,12 @@
-// String Encryptor
-// By Vexile
 import { genVar, obfNum } from './antitamper';
 
 export function encryptString(str: string): string {
     const key = Math.floor(Math.random() * 254) + 1;
     const bytes = Array.from(str).map(char => char.charCodeAt(0) ^ key);
-    
     const byteTable = "{" + bytes.map(b => obfNum(b)).join(",") + "}";
-    const dataVar = genVar(8);
-    const keyVar = genVar(8);
-    const resVar = genVar(8);
-    const iVar = genVar(8);
-    const vVar = genVar(8);
-    const tblVar = genVar(8);
+    
+    const d = genVar(8); const k = genVar(8); const r = genVar(8);
+    const i = genVar(8); const v = genVar(8);
 
-    // No loadstring. Uses a metatable to execute logic upon indexing.
-    return `(function() 
-        local ${dataVar} = ${byteTable}
-        local ${keyVar} = ${obfNum(key)}
-        local ${tblVar} = setmetatable({}, {
-            __index = function()
-                local ${resVar} = ""
-                for ${iVar}, ${vVar} in pairs(${dataVar}) do
-                    ${resVar} = ${resVar} .. string.char(bit32.bxor(${vVar}, ${keyVar}))
-                end
-                return ${resVar}
-            end
-        })
-        return ${tblVar}.decrypted
-    end)()`;
+    return `(function() local ${d},${k},${r}=${byteTable},${obfNum(key)},"" for ${i},${v} in pairs(${d}) do ${r}=${r}..string.char(bit32.bxor(${v},${k})) end return ${r} end)()`;
 }
