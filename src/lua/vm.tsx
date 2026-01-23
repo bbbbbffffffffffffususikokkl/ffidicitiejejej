@@ -28,7 +28,7 @@ export function generateVM(bytecode: any): string {
     end
     
     local B = i[3]
-    local results = {_pcall(func, __unpack(Stk, A + 1, B))}
+    local results = {pcall(func, unpack(Stk, A + 1, B))}
     
     if results[1] then
         local C = i[4]
