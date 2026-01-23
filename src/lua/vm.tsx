@@ -18,20 +18,22 @@ export function generateVM(bytecode: any): string {
             [3] = function(i) Env[Const[i[3]+1]] = Stk[i[2]] end,
             [4] = function(i) Stk[i[2]] = Stk[i[3]][Stk[i[4]]] end,
             [5] = function(i) Stk[i[2]][Stk[i[3]]] = Stk[i[4]] end,
-            [6] = function(i) 
+                        [6] = function(i) 
                 local func = Stk[i[2]]
                 if not func then 
                     warn("Vexile VM Fatal: Attempted to call nil at PC="..pc)
                     return
                 end
                 
-                local args = {}
-                local count = i[3] - 1
-                for j = 1, count do args[j] = Stk[i[2] + j] end
+                local startIdx = i[2] + 1
+                local endIdx = i[2] + i[3] - 1
+  
+                local results = {_pcall(func, __unpack(Stk, startIdx, endIdx))}
                 
-                local results = {pcall(func, unpack(args, 1, count))}
                 if results[1] then 
-                    for j=2, #results do Stk[i[2]+j-2] = results[j] end
+                    for j=2, #results do 
+                        Stk[i[2]+j-2] = results[j] 
+                    end
                 else 
                     error(results[2], 0) 
                 end

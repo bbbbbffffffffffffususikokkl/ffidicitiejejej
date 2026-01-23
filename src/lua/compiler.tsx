@@ -160,13 +160,18 @@ export class Compiler {
                     this.emit('GETTABLE', reg, reg, keyR);
                 }
                 break;
-            case 'Call':
+                        case 'Call':
                 const isMethod = e.base.type === 'Member' && e.base.indexer === ':';
                 this.compileExpr(e.base, reg); 
+                
                 const argOffset = isMethod ? 1 : 0;
+                // FIX: Ensure args are compiled into specific sequential registers
+                // without being overwritten by temporary evaluations
                 e.args.forEach((arg, i) => {
                     this.compileExpr(arg, reg + argOffset + i + 1);
                 });
+                
+                // Opcode 6 (CALL): A = function reg, B = num args + 1, C = num returns
                 this.emit('CALL', reg, e.args.length + 1 + argOffset, 1);
                 break;
             case 'Table':
