@@ -104,7 +104,8 @@ export function obfuscateCode(code: string, engine: string, preset: string, cust
      * If Anti-Tamper+ is enabled, the entire script is wrapped in a deferred thread.
      *[span_3](end_span)[span_4](end_span)
      */
-    return `--[[ Protected with Vexile v3.0.0 ]]
+    
+    return `--[[ Protected with Vexile v1.0.0 ]]
 ${isPlus ? "task.defer(function()" : "(function()"}
     ${parserBomb}
     local ${vReg} = {}
@@ -143,6 +144,6 @@ ${isPlus ? "task.defer(function()" : "(function()"}
     end
     
     ${coreExecution}
-    end)()
+${isPlus ? "end)" : "end)()"}
 `.trim();
 }
