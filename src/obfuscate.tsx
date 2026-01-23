@@ -17,6 +17,7 @@ function getSettings(preset: string, custom: ObfuscationSettings): ObfuscationSe
     if (preset === 'High') return { stringEncryption: true, antiTamper: true, antiTamperPlus: true, deadCode: true, vmCompiler: true, parserBomb: true };
     return { stringEncryption: false, antiTamper: true, antiTamperPlus: false, deadCode: true, vmCompiler: true, parserBomb: true };
 }
+
 export function obfuscateCode(code: string, engine: string, preset: string, customSettings: ObfuscationSettings): string {
     const settings = getSettings(preset, customSettings);
     let userCode = code.replace(/--.*$/gm, "").trim();
@@ -24,14 +25,11 @@ export function obfuscateCode(code: string, engine: string, preset: string, cust
     const vReg = genVar(12);
     const vVM = genVar(12);
 
-    // 1. Generate Security Layers
     const deadCode1 = settings.deadCode ? getDeadCode(preset) : "";
     const parserBomb = settings.parserBomb ? getParserBomb(preset) : "";
-    
     const isPlus = settings.antiTamperPlus;
     const antiTamperSource = (isPlus || settings.antiTamper) ? getAntiTamper(vVM, vReg, preset) : "";
 
-    // 2. Build the Source
     const tamperPlusLoop = isPlus ? "\nwhile task.wait(2) do end" : "";
     const fullSource = `${antiTamperSource}\n${deadCode1}\n${tamperPlusLoop}\n${userCode}`;
 
@@ -41,19 +39,17 @@ export function obfuscateCode(code: string, engine: string, preset: string, cust
         const bytecode = compiler.compile(fullSource);
         let vmCode = generateVM(bytecode);
 
-        // Localization and replacement logic
+        // We use standard 'pcall' and 'unpack' without underscores
+        // We replace getfenv() with the bridge table variable directly
         finalContent = `
-        local _pcall = pcall;
-        local __unpack = table.unpack or unpack;
-        ${vmCode.replace(/getfenv\(\)/g, vVM)
-                .replace(/pcall\(/g, "_pcall(")
-                .replace(/table\.unpack\(/g, "__unpack(")
-                .replace(/unpack\(/g, "__unpack(")}
+        local pcall, unpack = pcall, table.unpack or unpack;
+        ${vmCode.replace(/getfenv\(\)/g, vVM)}
         `.trim();
     } else {
         finalContent = fullSource;
     }
 
+    // Fixed the execution wrapper to handle the function reference correctly
     const innerExecution = `
     local function execute()
         local success, err = pcall(${vReg}[1])
@@ -61,13 +57,16 @@ export function obfuscateCode(code: string, engine: string, preset: string, cust
             warn("Vexile Fatal: " .. tostring(err)) 
         end
     end
-    ${isPlus ? "task.defer(execute)" : "execute()"}
+    if task and task.defer and ${isPlus ? "true" : "false"} then
+        task.defer(execute)
+    else
+        execute()
+    end
     `.trim();
 
     return `--[[ Protected with Vexile v3.0.0 ]]
 (function()
     ${parserBomb}
-    
     local ${vReg} = {}
     local ${vVM} = {}
     
@@ -77,7 +76,7 @@ export function obfuscateCode(code: string, engine: string, preset: string, cust
         
         for k, v in pairs(globals) do ${vVM}[k] = v end
         for k, v in pairs(env) do ${vVM}[k] = v end
-
+        
         ${vVM}["table"] = table or globals.table
         ${vVM}["unpack"] = unpack or (table and table.unpack) or globals.unpack
         ${vVM}["task"] = task or globals.task
@@ -93,9 +92,7 @@ export function obfuscateCode(code: string, engine: string, preset: string, cust
         ${vVM}["warn"] = warn or globals.warn
         ${vVM}["tostring"] = tostring or globals.tostring
         ${vVM}["pcall"] = pcall or globals.pcall
-        
-        ${vVM}["_pcall"] = pcall or globals.pcall
-        ${vVM}["__unpack"] = table.unpack or unpack or globals.unpack
+        ${vVM}["error"] = error or globals.error
 
         ${vVM}["${vVM}"] = ${vVM}
     end
