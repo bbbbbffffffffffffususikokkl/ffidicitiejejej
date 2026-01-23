@@ -84,6 +84,20 @@ export class Compiler {
                         this.compileBlock(clause.body);
                     });
                     break;
+                case 'ForGeneric':
+    // 1. Compile the iterator (e.g., pairs(table))
+    stat.iterators.forEach((expr, i) => this.compileExpr(expr, baseReg + i));
+    
+    // 2. Register the loop variables (e.g., k, v) into the local scope
+    const oldLocalsCount = this.locals.length;
+    stat.variables.forEach(vName => this.locals.push(vName));
+    
+    // 3. Compile the loop body
+    this.compileBlock(stat.body);
+    
+    // 4. Pop the loop variables after the loop ends to prevent leaks
+    this.locals.splice(oldLocalsCount);
+    break;
                 case 'Return':
                     stat.args.forEach((arg, i) => this.compileExpr(arg, baseReg + i));
                     this.emit('RETURN', baseReg, stat.args.length + 1);
