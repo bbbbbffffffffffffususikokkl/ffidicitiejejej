@@ -49,6 +49,7 @@ export default function App() {
   const [customSettings, setCustomSettings] = useState({
     stringEncryption: true,
     antiTamper: true,
+    antiTamperPlus: false,
     deadCode: true,
     vmCompiler: true,
     parserBomb: true
@@ -178,6 +179,7 @@ export default function App() {
               {[
                 { id: 'stringEncryption', label: 'String Encryption' },
                 { id: 'antiTamper', label: 'Anti Tamper' },
+                { id: 'antiTamperPlus', label: 'Anti Tamper+' },
                 { id: 'deadCode', label: 'Dead Code' },
                 { id: 'vmCompiler', label: 'Virtual Machine Compiler' },
                 { id: 'parserBomb', label: 'Parser Bomb' },
