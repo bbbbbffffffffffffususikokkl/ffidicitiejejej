@@ -16,10 +16,6 @@ export interface ObfuscationSettings {
     parserBomb: boolean;
 }
 
-/**
- * Handles preset logic and custom setting overrides.
- *[span_2](end_span)
- */
 function getSettings(preset: string, custom: ObfuscationSettings): ObfuscationSettings {
     if (preset === 'Custom') return custom;
     if (preset === 'High') {
@@ -63,6 +59,7 @@ export function obfuscateCode(code: string, engine: string, preset: string, cust
     const isPlus = settings.antiTamperPlus;
     const antiTamperSource = (isPlus || settings.antiTamper) ? `(function() ${getAntiTamper(vVM, vReg, preset)} end)();` : "";
     const tamperPlusLoop = isPlus ? "\nwhile task.wait(2) do end" : "";
+    
     const fullSource = `${antiTamperSource}\n${deadCode1}\n${userCode}\n${tamperPlusLoop}`;
     let finalContent = "";
     if (settings.vmCompiler) {
@@ -72,7 +69,7 @@ export function obfuscateCode(code: string, engine: string, preset: string, cust
         finalContent = `local ${vVM} = ...; setfenv(1, ${vVM}); ${vmCode}`;
     } else { finalContent = fullSource; }
     const coreExecution = `local success, err = pcall(${vReg}[1], ${vVM}) if not success then warn("Vexile Fatal: " .. tostring(err)) end`;
-    return `--[[ Protected with Vexile fffvooo ]]
+    return `--[[ Protected with Vexile fffvooofmfm ]]
 ${isPlus ? "task.defer(function()" : "(function()"}
     ${parserBomb}
     local ${vReg}, ${vVM} = {}, {}
