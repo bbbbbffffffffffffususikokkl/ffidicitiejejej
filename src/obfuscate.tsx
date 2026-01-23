@@ -72,7 +72,7 @@ export function obfuscateCode(code: string, engine: string, preset: string, cust
         finalContent = `local ${vVM} = ...; setfenv(1, ${vVM}); ${vmCode}`;
     } else { finalContent = fullSource; }
     const coreExecution = `local success, err = pcall(${vReg}[1], ${vVM}) if not success then warn("Vexile Fatal: " .. tostring(err)) end`;
-    return `--[[ Protected with Vexile vooo ]]
+    return `--[[ Protected with Vexile fffvooo ]]
 ${isPlus ? "task.defer(function()" : "(function()"}
     ${parserBomb}
     local ${vReg}, ${vVM} = {}, {}
