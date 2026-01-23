@@ -6,16 +6,15 @@ import { getParserBomb, getAntiTamper, genVar } from './lua/antitamper';
 export interface ObfuscationSettings {
     stringEncryption: boolean;
     antiTamper: boolean;
-    antiTamperPlus: boolean; // New setting
+    antiTamperPlus: boolean;
     deadCode: boolean;
     vmCompiler: boolean;
     parserBomb: boolean;
 }
 
-// Updated settings logic: antiTamperPlus overrides standard antiTamper if both are on
 function getSettings(preset: string, custom: ObfuscationSettings): ObfuscationSettings {
     if (preset === 'Custom') return custom;
-    if (preset === 'High') return { stringEncryption: true, antiTamper: true, antiTamperPlus: false, deadCode: true, vmCompiler: true, parserBomb: true };
+    if (preset === 'High') return { stringEncryption: true, antiTamper: true, antiTamperPlus: true, deadCode: true, vmCompiler: true, parserBomb: true };
     return { stringEncryption: false, antiTamper: true, antiTamperPlus: false, deadCode: true, vmCompiler: true, parserBomb: true };
 }
 
@@ -40,15 +39,13 @@ export function obfuscateCode(code: string, engine: string, preset: string, cust
         const bytecode = compiler.compile(fullSource);
         let vmCode = generateVM(bytecode);
 
-        // FIX: Force localization and replace getfenv() with our randomized environment table
-        // This ensures 'Env' is never nil when the VM tries to find 'task' or 'print'
         finalContent = `
         local _pcall = pcall;
-        local __unpack = table.unpack or unpack;
+        local _unpack = table.unpack or unpack;
         ${vmCode.replace(/getfenv\(\)/g, vVM)
                 .replace(/pcall\(/g, "_pcall(")
-                .replace(/table\.unpack\(/g, "__unpack(")
-                .replace(/unpack\(/g, "__unpack(")}
+                .replace(/table\.unpack\(/g, "_unpack(")
+                .replace(/unpack\(/g, "_unpack(")}
         `.trim();
     } else {
         finalContent = fullSource;
@@ -67,14 +64,12 @@ export function obfuscateCode(code: string, engine: string, preset: string, cust
     return `--[[ Protected with Vexile v3.0.0 ]]
 (function()
     ${parserBomb}
-    
     local ${vReg} = {}
     local ${vVM} = {}
     
     local function bridge()
         local env = getfenv(0)
         local globals = (typeof and getgenv and getgenv()) or _G or {}
-        
         for k, v in pairs(globals) do ${vVM}[k] = v end
         for k, v in pairs(env) do ${vVM}[k] = v end
         
@@ -89,7 +84,6 @@ export function obfuscateCode(code: string, engine: string, preset: string, cust
         ${vVM}["setmetatable"] = setmetatable or globals.setmetatable
         ${vVM}["type"] = type
         ${vVM}["typeof"] = typeof
-
         ${vVM}["${vVM}"] = ${vVM}
     end
     bridge()
