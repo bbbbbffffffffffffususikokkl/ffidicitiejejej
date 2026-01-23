@@ -38,7 +38,7 @@ export class Parser {
         while (this.pos < this.tokens.length) {
             const t = this.peek();
             
-            // Handle optional semicolons (;) between statements
+            // Skip optional semicolons between statements
             if (t.value === ';') {
                 this.consume();
                 continue;
@@ -47,9 +47,9 @@ export class Parser {
             if (t.type === TokenType.EOF || endKeywords.includes(t.value)) break;
             
             if (t.value === 'local') stats.push(this.parseLocal());
-            else if (t.value === 'function') stats.push(this.parseFunction());
-            else if (t.value === 'return') { stats.push(this.parseReturn()); break; }
-            else if (t.value === 'if') stats.push(this.parseIf());
+            else if (t.value === 'function') stats.push(this.parseFunction() as any);
+            else if (t.value === 'return') { stats.push(this.parseReturn() as any); break; }
+            else if (t.value === 'if') stats.push(this.parseIf() as any);
             else if (t.value === 'do') stats.push(this.parseDo()); 
             else {
                 const expr = this.parseExpr();
@@ -117,6 +117,8 @@ export class Parser {
             expr = { type: 'Identifier', name: t.value } as any;
         } else if (t.value === '{') {
             expr = this.parseTable();
+        } else if (t.value === 'function') {
+            expr = this.parseFunction() as any;
         } else if (t.value === '(') {
             this.consume();
             expr = this.parseExpr();
@@ -125,6 +127,7 @@ export class Parser {
             throw new Error(`Unexpected token '${t.value}' at line ${t.line}`);
         }
 
+        // Handle Accessors and Calls
         while (true) {
             const next = this.peek().value;
             if (next === '.') {
@@ -214,7 +217,7 @@ export class Parser {
     private parseFunction(): Statement { 
         this.consume();
         const t = this.peek();
-        let name: any;
+        let name: any = null;
         if (t.type === TokenType.Identifier) {
             name = { type: 'Identifier', name: this.consume().value };
         }
