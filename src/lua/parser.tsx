@@ -38,7 +38,7 @@ export class Parser {
         while (this.pos < this.tokens.length) {
             const t = this.peek();
             
-            // Skip optional semicolons between statements
+            // Handle optional semicolons (;) between statements
             if (t.value === ';') {
                 this.consume();
                 continue;
@@ -100,6 +100,13 @@ export class Parser {
         let t = this.peek();
         let expr: Expression | null = null;
 
+        // UNARY OPERATOR SUPPORT (not, #, -)
+        if (t.value === 'not' || t.value === '#' || (t.value === '-' && t.type === TokenType.Symbol)) {
+            const operator = this.consume().value;
+            const argument = this.parsePrimary();
+            return { type: 'Unary', operator, argument } as any;
+        }
+
         if (t.type === TokenType.Number) {
             this.consume();
             expr = { type: 'Number', value: Number(t.value) } as any;
@@ -127,7 +134,7 @@ export class Parser {
             throw new Error(`Unexpected token '${t.value}' at line ${t.line}`);
         }
 
-        // Handle Accessors and Calls
+        // Handle Suffixes (Member access, Table indexing, and Calls)
         while (true) {
             const next = this.peek().value;
             if (next === '.') {
@@ -218,6 +225,7 @@ export class Parser {
         this.consume();
         const t = this.peek();
         let name: any = null;
+        // Check for named function vs anonymous
         if (t.type === TokenType.Identifier) {
             name = { type: 'Identifier', name: this.consume().value };
         }
