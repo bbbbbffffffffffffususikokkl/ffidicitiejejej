@@ -1,4 +1,3 @@
-// vm.tsx
 export function generateVM(bytecode: any): string {
     const { code, constants } = bytecode;
     const instStr = code.map((i: any) => `{${i.op},${i.a},${i.b},${i.c}}`).join(',');
@@ -21,11 +20,22 @@ export function generateVM(bytecode: any): string {
             [5] = function(i) Stk[i[2]][Stk[i[3]]] = Stk[i[4]] end,
             [6] = function(i) 
                 local func = Stk[i[2]]
-                if not func then error("VM Error: Attempt to call nil (Op 6) at PC " .. pc) end
+                if not func then 
+                    local name = "Unknown"
+                    if i[2] > 0 then name = tostring(Stk[i[2]-1]) end 
+                    warn("Vexile VM Fatal: Attempted to call nil at PC="..pc)
+                    return
+                end
+                
                 local args = {}
                 for j = 1, i[3] - 1 do args[j] = Stk[i[2] + j] end
-                local success, result = pcall(func, table.unpack(args))
-                if success then Stk[i[2]] = result else error(result) end
+                
+                local results = {pcall(func, table.unpack(args))}
+                if results[1] then 
+                    for j=2, #results do Stk[i[2]+j-2] = results[j] end
+                else 
+                    error(results[2]) 
+                end
             end,
             [7] = function(i) pc = #Inst + 1 end,
             [8] = function(i) Stk[i[2]] = Stk[i[3]] + Stk[i[4]] end,
