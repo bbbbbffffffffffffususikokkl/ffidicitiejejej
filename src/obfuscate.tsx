@@ -25,7 +25,8 @@ export function obfuscateCode(code: string, engine: string, preset: string, cust
 
     let vmScript = "";
     if (settings.vmCompiler) {
-        const compiler = new Compiler();
+        // Pass the settings into the compiler instance
+        const compiler = new Compiler(settings); 
         const bytecode = compiler.compile(processedCode);
         vmScript = generateVM(bytecode);
     } else {
@@ -39,7 +40,7 @@ export function obfuscateCode(code: string, engine: string, preset: string, cust
     const deadCode1 = settings.deadCode ? getDeadCode(preset) : "";
     const antiTamper = settings.antiTamper ? getAntiTamper(vVM, vReg) : "";
 
-    return `--[[ Protected with Vexile v1.0.0 ]]\n(function()
+    return `--[[ Protected with Vexile v3.0.0 ]]\n(function()
     ${parserBomb}
     ${deadCode1}
     local ${vReg} = {}
@@ -49,7 +50,7 @@ export function obfuscateCode(code: string, engine: string, preset: string, cust
         ${vmScript}
     end
     setfenv(${vReg}[1], ${vVM})
-    pcall(${vReg}[1])
-end)()
-    `.trim();
+    local success, err = pcall(${vReg}[1])
+    if not success and err then print("Vexile Error: " .. tostring(err)) end
+end)()`.trim();
 }
