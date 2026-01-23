@@ -43,12 +43,16 @@ export function obfuscateCode(code: string, engine: string, preset: string, cust
     const parserBomb = settings.parserBomb ? getParserBomb(preset) : "";
     const deadCode1 = settings.deadCode ? getDeadCode(preset) : "";
 
-    return `--[[ Protected with Vexile v3.0.0 ]]\n(function()
+   return `--[[ Protected with Vexile v3.0.0 ]]\n(function()
     ${parserBomb}
     ${deadCode1}
     local ${vReg} = {}
     local ${vVM} = {}
     
+    for k, v in pairs(getfenv(0)) do
+        ${vVM}[k] = v
+    end
+
     ${vReg}[1] = function()
         ${vmScript}
     end
@@ -56,7 +60,7 @@ export function obfuscateCode(code: string, engine: string, preset: string, cust
     setfenv(${vReg}[1], ${vVM})
     local success, err = pcall(${vReg}[1])
     if not success and err then 
-        warn("Vexile Security: Implementation Error") 
+        warn("Vexile Security: Implementation Error: " .. tostring(err)) 
     end
 end)()`.trim();
 }
