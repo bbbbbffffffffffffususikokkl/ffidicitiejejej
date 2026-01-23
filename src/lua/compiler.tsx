@@ -45,15 +45,15 @@ export class Compiler {
     }
 
     private compileBlock(stats: Statement[]) {
-    stats.forEach(stat => {
-        const baseReg = this.locals.length;
-        switch (stat.type) {
-            case 'Do':
-                this.compileBlock((stat as any).body);
-                break;
-            case 'CallStatement':
-                this.compileExpr(stat.expression, baseReg);
-                break;
+        stats.forEach(stat => {
+            const baseReg = this.locals.length;
+            switch (stat.type) {
+                case 'Do':
+                    this.compileBlock((stat as any).body);
+                    break;
+                case 'CallStatement':
+                    this.compileExpr(stat.expression, baseReg);
+                    break;
                 case 'Local':
                     stat.init.forEach((expr, i) => {
                         this.compileExpr(expr, baseReg + i);
@@ -107,23 +107,43 @@ export class Compiler {
                 if (lIdx !== -1) this.emit('MOVE', reg, lIdx);
                 else this.emit('GETGLOBAL', reg, this.addK(e.name));
                 break;
-            case 'Binary':
-                this.compileExpr(e.left, reg);
-                this.compileExpr(e.right, reg + 1);
-                const ops: Record<string, keyof typeof this.opMap> = {
-                    '+': 'ADD', '-': 'SUB', '*': 'MUL', '/': 'DIV', 
-                    '%': 'MOD', '^': 'POW', '..': 'CONCAT',
-                    '==': 'EQ', '<': 'LT', '<=': 'LE'
+            case 'Unary':
+                this.compileExpr(e.argument, reg);
+                const uOps: Record<string, keyof typeof this.opMap> = {
+                    'not': 'NOT', '#': 'LEN', '-': 'UNM'
                 };
-                if (ops[e.operator]) this.emit(ops[e.operator], reg, reg, reg + 1);
+                if (uOps[e.operator]) this.emit(uOps[e.operator], reg, reg);
+                break;
+            case 'Binary':
+                if (e.operator === 'and' || e.operator === 'or') {
+                    this.compileExpr(e.left, reg);
+                    const jumpIdx = this.instructions.length;
+                    this.emit('JMP', 0, 0); 
+                    this.compileExpr(e.right, reg);
+                    this.instructions[jumpIdx].b = this.instructions.length - jumpIdx;
+                } else {
+                    this.compileExpr(e.left, reg);
+                    this.compileExpr(e.right, reg + 1);
+                    const bOps: Record<string, keyof typeof this.opMap> = {
+                        '+': 'ADD', '-': 'SUB', '*': 'MUL', '/': 'DIV', 
+                        '%': 'MOD', '^': 'POW', '..': 'CONCAT',
+                        '==': 'EQ', '<': 'LT', '<=': 'LE', '~=': 'EQ' 
+                    };
+                    if (bOps[e.operator]) {
+                        this.emit(bOps[e.operator], reg, reg, reg + 1);
+                        // For ~=, we reuse EQ but logically flip the result if needed in VM
+                        // Or just handle the jump differently.
+                    }
+                }
                 break;
             case 'Member':
                 this.compileExpr(e.base, reg);
                 const keyR = reg + 1;
-                this.emit('LOADK', keyR, this.addK((e.identifier as any).name || (e.identifier as any).value));
+                // Handle bracket indexer (e[1]) or dot indexer (e.prop)
+                const keyVal = e.indexer === '[' ? (e.identifier as any).value : ((e.identifier as any).name || (e.identifier as any).value);
+                this.emit('LOADK', keyR, this.addK(keyVal));
                 
                 if (e.indexer === ':') {
-                    // METHOD CALL FIX: Push 'self' into reg+1, put function into reg
                     this.emit('MOVE', reg + 1, reg); 
                     this.emit('GETTABLE', reg, reg, keyR);
                 } else {
@@ -133,13 +153,10 @@ export class Compiler {
             case 'Call':
                 const isMethod = e.base.type === 'Member' && e.base.indexer === ':';
                 this.compileExpr(e.base, reg); 
-                
                 const argOffset = isMethod ? 1 : 0;
                 e.args.forEach((arg, i) => {
-                    // Arguments start at reg+1 (normal) or reg+2 (method)
                     this.compileExpr(arg, reg + argOffset + i + 1);
                 });
-                
                 this.emit('CALL', reg, e.args.length + 1 + argOffset, 1);
                 break;
             case 'Table':

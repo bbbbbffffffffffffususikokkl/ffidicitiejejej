@@ -254,12 +254,17 @@ export class Parser {
         return { type: 'Return', args } as any; 
     }
 
-    private isBinOp(op: string) { return ['+', '-', '*', '/', '..', '==', '>', '<', '<=', '>=', '~='].includes(op); }
-    private getPrecedence(op: string) {
-        if (op === '..') return 4;
-        if (['+', '-'].includes(op)) return 5;
-        if (['*', '/'].includes(op)) return 6;
-        if (['==', '>', '<', '<=', '>=', '~='].includes(op)) return 3;
-        return 0; 
-    }
+    private isBinOp(op: string) { 
+    return ['+', '-', '*', '/', '..', '==', '>', '<', '<=', '>=', '~=', 'and', 'or'].includes(op); 
+}
+
+private getPrecedence(op: string) {
+    if (op === 'or') return 1;
+    if (op === 'and') return 2;
+    if (['==', '>', '<', '<=', '>=', '~='].includes(op)) return 3;
+    if (op === '..') return 4;
+    if (['+', '-'].includes(op)) return 5;
+    if (['*', '/'].includes(op)) return 6;
+    return 0; 
+}
 }
