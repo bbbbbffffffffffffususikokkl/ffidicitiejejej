@@ -3,8 +3,10 @@
 export function generateVM(bytecode: any): string {
     const { code, constants, opMap } = bytecode;
     const instStr = code.map((i: any) => `{${i.op},${i.a},${i.b},${i.c}}`).join(',');
+    
+    // Using [=[ and ]=] handles nested quotes and multiple lines perfectly.
     const constStr = constants.map((c: any) => {
-        if (typeof c === 'string') return `"${c.replace(/"/g, '\\"')}"`;
+        if (typeof c === 'string') return `[=[${c}]=]`;
         if (c === null) return "nil";
         return `${c}`;
     }).join(',');
@@ -25,8 +27,8 @@ export function generateVM(bytecode: any): string {
             [${opMap.CALL}] = function(i) 
                 local args = {}
                 for j=1, i[3]-1 do args[j] = Stk[i[2]+j] end
-                local results = {Stk[i[2]](table.unpack(args))}
-                Stk[i[2]] = results[1]
+                local res = {Stk[i[2]](table.unpack(args))}
+                Stk[i[2]] = res[1]
             end,
             [${opMap.RETURN}] = function(i) pc = #Inst + 1 return true, Stk[i[2]] end,
             [${opMap.ADD}] = function(i) Stk[i[2]] = Stk[i[3]] + Stk[i[4]] end,
@@ -34,8 +36,6 @@ export function generateVM(bytecode: any): string {
             [${opMap.MUL}] = function(i) Stk[i[2]] = Stk[i[3]] * Stk[i[4]] end,
             [${opMap.DIV}] = function(i) Stk[i[2]] = Stk[i[3]] / Stk[i[4]] end,
             [${opMap.EQ}] = function(i) if Stk[i[3]] ~= Stk[i[4]] then pc = pc + 1 end end,
-            [${opMap.LT}] = function(i) if not (Stk[i[3]] < Stk[i[4]]) then pc = pc + 1 end end,
-            [${opMap.LE}] = function(i) if not (Stk[i[3]] <= Stk[i[4]]) then pc = pc + 1 end end,
             [${opMap.JMP}] = function(i) pc = pc + i[2] end
         }
         while pc <= #Inst do

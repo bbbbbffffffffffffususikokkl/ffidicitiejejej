@@ -12,14 +12,21 @@ export function encryptString(str: string): string {
     const resVar = genVar(8);
     const iVar = genVar(8);
     const vVar = genVar(8);
+    const tblVar = genVar(8);
 
+    // No loadstring. Uses a metatable to execute logic upon indexing.
     return `(function() 
         local ${dataVar} = ${byteTable}
         local ${keyVar} = ${obfNum(key)}
-        local ${resVar} = ""
-        for ${iVar}, ${vVar} in pairs(${dataVar}) do
-            ${resVar} = ${resVar} .. string.char(bit32.bxor(${vVar}, ${keyVar}))
-        end
-        return ${resVar}
+        local ${tblVar} = setmetatable({}, {
+            __index = function()
+                local ${resVar} = ""
+                for ${iVar}, ${vVar} in pairs(${dataVar}) do
+                    ${resVar} = ${resVar} .. string.char(bit32.bxor(${vVar}, ${keyVar}))
+                end
+                return ${resVar}
+            end
+        })
+        return ${tblVar}.decrypted
     end)()`;
 }
