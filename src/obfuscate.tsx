@@ -30,12 +30,10 @@ export function obfuscateCode(code: string, engine: string, preset: string, cust
     const deadCode1 = settings.deadCode ? getDeadCode(preset) : "";
     const parserBomb = settings.parserBomb ? getParserBomb(preset) : "";
     
-    // antiTamperPlus overrides standard antiTamper logic
     const isPlus = settings.antiTamperPlus;
     const antiTamperSource = (isPlus || settings.antiTamper) ? getAntiTamper(vVM, vReg, preset) : "";
 
     // 2. Build the Source
-    // Logic: [Anti-Tamper] -> [Dead Code] -> [Plus Infinite Loop] -> [User Code]
     const tamperPlusLoop = isPlus ? "\nwhile task.wait(2) do end" : "";
     const fullSource = `${antiTamperSource}\n${deadCode1}\n${tamperPlusLoop}\n${userCode}`;
 
@@ -43,7 +41,12 @@ export function obfuscateCode(code: string, engine: string, preset: string, cust
     if (settings.vmCompiler) {
         const compiler = new Compiler(settings);
         const bytecode = compiler.compile(fullSource);
-        finalContent = generateVM(bytecode);
+        
+        // --- FIX: We inject localization at the start of the VM body ---
+        finalContent = `
+        local _pcall, _unpack = pcall, table.unpack or unpack;
+        ${generateVM(bytecode).replace(/pcall\(/g, "_pcall(").replace(/table\.unpack\(/g, "_unpack(").replace(/unpack\(/g, "_unpack(")}
+        `.trim();
     } else {
         finalContent = fullSource;
     }
@@ -74,7 +77,6 @@ export function obfuscateCode(code: string, engine: string, preset: string, cust
         
         ${vVM}["table"] = table or globals.table
         ${vVM}["unpack"] = unpack or (table and table.unpack) or globals.unpack
-        
         ${vVM}["task"] = task or globals.task
         ${vVM}["bit32"] = bit32 or globals.bit32
         ${vVM}["getfenv"] = getfenv or env.getfenv
