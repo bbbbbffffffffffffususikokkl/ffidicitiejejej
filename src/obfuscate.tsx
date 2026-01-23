@@ -3,6 +3,56 @@ import { generateVM } from './lua/vm';
 import { getDeadCode } from './lua/controlflow';
 import { getParserBomb, getAntiTamper, genVar } from './lua/antitamper';
 
+/**
+ * Interface defining the available protection layers.
+ * [span_2](start_span)
+ */
+export interface ObfuscationSettings {
+    stringEncryption: boolean;
+    antiTamper: boolean;
+    antiTamperPlus: boolean;
+    deadCode: boolean;
+    vmCompiler: boolean;
+    parserBomb: boolean;
+}
+
+/**
+ * Handles preset logic and custom setting overrides.
+ *[span_2](end_span)
+ */
+function getSettings(preset: string, custom: ObfuscationSettings): ObfuscationSettings {
+    if (preset === 'Custom') return custom;
+    if (preset === 'High') {
+        return { 
+            stringEncryption: true, 
+            antiTamper: true, 
+            antiTamperPlus: true, 
+            deadCode: true, 
+            vmCompiler: true, 
+            parserBomb: true 
+        };
+    }
+    // Default / Medium preset logic
+    if (preset === 'Medium') {
+        return { 
+            stringEncryption: true, 
+            antiTamper: true, 
+            antiTamperPlus: false, 
+            deadCode: true, 
+            vmCompiler: true, 
+            parserBomb: true 
+        };
+    }
+    return { 
+        stringEncryption: false, 
+        antiTamper: true, 
+        antiTamperPlus: false, 
+        deadCode: true, 
+        vmCompiler: true, 
+        parserBomb: false 
+    };
+}
+
 export function obfuscateCode(code: string, engine: string, preset: string, customSettings: ObfuscationSettings): string {
     const settings = getSettings(preset, customSettings);
     let userCode = code.replace(/--.*$/gm, "").trim();
@@ -10,11 +60,14 @@ export function obfuscateCode(code: string, engine: string, preset: string, cust
     const vReg = genVar(12);
     const vVM = genVar(12);
 
+    // 1. Generate Security Layers
     const deadCode1 = settings.deadCode ? getDeadCode(preset) : "";
     const parserBomb = settings.parserBomb ? getParserBomb(preset) : "";
+    
     const isPlus = settings.antiTamperPlus;
     const antiTamperSource = (isPlus || settings.antiTamper) ? getAntiTamper(vVM, vReg, preset) : "";
 
+    // 2. Build the Source
     const tamperPlusLoop = isPlus ? "\nwhile task.wait(2) do end" : "";
     const fullSource = `${antiTamperSource}\n${deadCode1}\n${tamperPlusLoop}\n${userCode}`;
 
@@ -24,8 +77,12 @@ export function obfuscateCode(code: string, engine: string, preset: string, cust
         const bytecode = compiler.compile(fullSource);
         let vmCode = generateVM(bytecode);
 
-        // Standardized names: pcall and unpack
-        // Replace getfenv() with the bridge table variable directly
+        /**
+         * VM Initialization Fix:
+         * We use standard 'pcall' and 'unpack' locally to ensure they aren't nil after setfenv.
+         * We replace getfenv() with the bridge table name (vVM) so Env is correctly mapped.
+         * [span_3](start_span)[span_4](start_span)
+         */
         finalContent = `
         local pcall, unpack = pcall, table.unpack or unpack;
         ${vmCode.replace(/getfenv\(\)/g, vVM)}
@@ -33,7 +90,7 @@ export function obfuscateCode(code: string, engine: string, preset: string, cust
     } else {
         finalContent = fullSource;
     }
-    
+
     const coreExecution = `
     setfenv(${vReg}[1], ${vVM})
     local success, err = pcall(${vReg}[1])
@@ -42,6 +99,11 @@ export function obfuscateCode(code: string, engine: string, preset: string, cust
     end
     `.trim();
 
+    /**
+     * Final Script Structure:
+     * If Anti-Tamper+ is enabled, the entire script is wrapped in a deferred thread.
+     *[span_3](end_span)[span_4](end_span)
+     */
     return `--[[ Protected with Vexile v3.0.0 ]]
 ${isPlus ? "task.defer(function()" : "(function()"}
     ${parserBomb}
