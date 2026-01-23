@@ -21,20 +21,19 @@ export function generateVM(bytecode: any): string {
             [6] = function(i) 
                 local func = Stk[i[2]]
                 if not func then 
-                    local name = "Unknown"
-                    if i[2] > 0 then name = tostring(Stk[i[2]-1]) end 
                     warn("Vexile VM Fatal: Attempted to call nil at PC="..pc)
                     return
                 end
                 
                 local args = {}
-                for j = 1, i[3] - 1 do args[j] = Stk[i[2] + j] end
+                local count = i[3] - 1
+                for j = 1, count do args[j] = Stk[i[2] + j] end
                 
-                local results = {pcall(func, table.unpack(args))}
+                local results = {pcall(func, unpack(args, 1, count))}
                 if results[1] then 
                     for j=2, #results do Stk[i[2]+j-2] = results[j] end
                 else 
-                    error(results[2]) 
+                    error(results[2], 0) 
                 end
             end,
             [7] = function(i) pc = #Inst + 1 end,

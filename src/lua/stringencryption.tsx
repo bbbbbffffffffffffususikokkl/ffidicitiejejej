@@ -8,5 +8,13 @@ export function encryptString(str: string): string {
     const d = genVar(8); const k = genVar(8); const r = genVar(8);
     const i = genVar(8); const v = genVar(8);
 
-    return `(function() local ${d},${k},${r}=${byteTable},${obfNum(key)},"" for ${i},${v} in pairs(${d}) do ${r}=${r}..string.char(bit32.bxor(${v},${k})) end return ${r} end)()`;
+    return `(function() 
+        local b32 = bit32; 
+        local s = string; 
+        local ${d},${k},${r}=${byteTable},${obfNum(key)},""; 
+        for ${i},${v} in pairs(${d}) do 
+            ${r}=${r}..s.char(b32.bxor(${v},${k})) 
+        end 
+        return ${r} 
+    end)()`;
 }
