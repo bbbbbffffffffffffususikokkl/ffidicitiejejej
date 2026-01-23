@@ -123,6 +123,10 @@ ${isPlus ? "task.defer(function()" : "(function()"}
         ${vVM}["error"] = error or globals.error
 
         ${vVM}["${vVM}"] = ${vVM}
+        for k, v in pairs(globals) do 
+    print("Added to Bridge: " .. tostring(k))
+    vVM[k] = v 
+end
     end
     bridge()
 
