@@ -26,7 +26,7 @@ function getSettings(preset: string, custom: ObfuscationSettings): ObfuscationSe
         return { 
             stringEncryption: true, 
             antiTamper: true, 
-            antiTamperPlus: true, 
+            antiTamperPlus: false, 
             deadCode: true, 
             vmCompiler: true, 
             parserBomb: true 
@@ -60,16 +60,14 @@ export function obfuscateCode(code: string, engine: string, preset: string, cust
     const vReg = genVar(12);
     const vVM = genVar(12);
 
-    // 1. Generate Security Layers
     const deadCode1 = settings.deadCode ? getDeadCode(preset) : "";
     const parserBomb = settings.parserBomb ? getParserBomb(preset) : "";
     
     const isPlus = settings.antiTamperPlus;
-    const antiTamperSource = (isPlus || settings.antiTamper) ? getAntiTamper(vVM, vReg, preset) : "";
+    const antiTamperSource = (isPlus || settings.antiTamper) ? `(function() ${getAntiTamper(vVM, vReg, preset)} end)();` : "";
 
-    // 2. Build the Source
     const tamperPlusLoop = isPlus ? "\nwhile task.wait(2) do end" : "";
-    const fullSource = `${antiTamperSource}\n${deadCode1}\n${tamperPlusLoop}\n${userCode}`;
+    const fullSource = `${antiTamperSource}\n${deadCode1}\n${userCode}\n${tamperPlusLoop}`;
 
     let finalContent = "";
     if (settings.vmCompiler) {
@@ -77,12 +75,6 @@ export function obfuscateCode(code: string, engine: string, preset: string, cust
         const bytecode = compiler.compile(fullSource);
         let vmCode = generateVM(bytecode);
 
-        /**
-         * VM Initialization Fix:
-         * We use standard 'pcall' and 'unpack' locally to ensure they aren't nil after setfenv.
-         * We replace getfenv() with the bridge table name (vVM) so Env is correctly mapped.
-         * [span_3](start_span)[span_4](start_span)
-         */
         finalContent = `
         local pcall, unpack = pcall, table.unpack or unpack;
         ${vmCode.replace(/getfenv\(\)/g, vVM)}
@@ -98,12 +90,6 @@ export function obfuscateCode(code: string, engine: string, preset: string, cust
         warn("Vexile Fatal: " .. tostring(err)) 
     end
     `.trim();
-
-    /**
-     * Final Script Structure:
-     * If Anti-Tamper+ is enabled, the entire script is wrapped in a deferred thread.
-     *[span_3](end_span)[span_4](end_span)
-     */
     
     return `--[[ Protected with Vexile v1.0.0 ]]
 ${isPlus ? "task.defer(function()" : "(function()"}
