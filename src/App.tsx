@@ -1,5 +1,5 @@
 import { useState, useRef } from 'react';
-import { Shield, Sword, Zap, Copy, Check, Download, Upload, Settings } from 'lucide-react'; 
+import { Shield, Sword, Zap, Copy, Check, Download, Upload, Settings, Braces, Terminal, FileCode, Lock } from 'lucide-react'; 
 import { obfuscateCode } from './obfuscate';
 
 const PRESETS = {
@@ -11,7 +11,7 @@ const PRESETS = {
   },
   High: {
     icon: <Shield className="w-5 h-5 text-emerald-400" />,
-    description: "Best obfuscation for maximum security. Best for sensitive scripts.",
+    description: "Max obfuscation for maximum security. Best for sensitive scripts.",
     stats: { time: "Very Fast (<100ms)", size: "2750-3000%", security: "High" },
     color: "text-emerald-400"
   },
@@ -179,24 +179,36 @@ export default function App() {
               {[
                 { id: 'stringEncryption', label: 'String Encryption' },
                 { id: 'antiTamper', label: 'Anti Tamper' },
-                { id: 'antiTamperPlus', label: 'Anti Tamper+' },
+                { id: 'antiTamperPlus', label: 'Anti Tamper+', tip: "If your obfuscated code breaks, turn this off." },
                 { id: 'deadCode', label: 'Dead Code' },
-                { id: 'vmCompiler', label: 'Virtual Machine Compiler' },
+                { id: 'vmCompiler', label: 'VM Compiler' },
                 { id: 'parserBomb', label: 'Parser Bomb' },
               ].map((item) => (
-                <label key={item.id} className="flex items-center gap-3 cursor-pointer group">
-                  <div 
-                    onClick={() => toggleSetting(item.id as keyof typeof customSettings)}
-                    className={`w-5 h-5 rounded border flex items-center justify-center transition-all ${
-                      customSettings[item.id as keyof typeof customSettings] 
-                        ? 'bg-indigo-600 border-indigo-500' 
-                        : 'border-neutral-700 bg-neutral-800'
-                    }`}
-                  >
-                    {customSettings[item.id as keyof typeof customSettings] && <Check className="w-3.5 h-3.5 text-white" strokeWidth={3} />}
+                <div key={item.id} className="relative group/tip flex items-center">
+                  <label className="flex items-center gap-3 cursor-pointer group">
+                    <div 
+                      onClick={() => toggleSetting(item.id as keyof typeof customSettings)}
+                      className={`w-5 h-5 rounded border flex items-center justify-center transition-all ${
+                        customSettings[item.id as keyof typeof customSettings] 
+                          ? 'bg-indigo-600 border-indigo-500' 
+                          : 'border-neutral-700 bg-neutral-800'
+                      }`}
+                    >
+                      {customSettings[item.id as keyof typeof customSettings] && <Check className="w-3.5 h-3.5 text-white" strokeWidth={3} />}
+                    </div>
+                    <div className="flex items-center gap-2">
+                        <span className="text-neutral-500 group-hover:text-indigo-400 transition-colors">{item.icon}</span>
+                        <span className="text-sm text-neutral-300 group-hover:text-white transition-colors">{item.label}</span>
+                    </div>
+                  </label>
+
+                  {/* Tooltip Popup */}
+                  <div className="absolute bottom-full left-0 mb-2 hidden group-hover/tip:block z-50 animate-in fade-in slide-in-from-bottom-1 duration-200">
+                    <div className="bg-neutral-800 border border-neutral-700 text-neutral-200 text-[11px] px-3 py-1.5 rounded-lg shadow-2xl whitespace-nowrap">
+                      {item.tip}
+                    </div>
                   </div>
-                  <span className="text-sm text-neutral-300 group-hover:text-white transition-colors">{item.label}</span>
-                </label>
+                </div>
               ))}
             </div>
           ) : (
