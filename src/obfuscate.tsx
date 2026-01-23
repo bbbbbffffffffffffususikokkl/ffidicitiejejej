@@ -6,16 +6,17 @@ import { getParserBomb, getAntiTamper, genVar } from './lua/antitamper';
 export interface ObfuscationSettings {
     stringEncryption: boolean;
     antiTamper: boolean;
+    antiTamperPlus: boolean; // New setting
     deadCode: boolean;
     vmCompiler: boolean;
     parserBomb: boolean;
 }
 
+// Updated settings logic: antiTamperPlus overrides standard antiTamper if both are on
 function getSettings(preset: string, custom: ObfuscationSettings): ObfuscationSettings {
     if (preset === 'Custom') return custom;
-    if (preset === 'High') return { stringEncryption: true, antiTamper: true, deadCode: true, vmCompiler: true, parserBomb: true };
-    if (preset === 'Medium') return { stringEncryption: true, antiTamper: true, deadCode: true, vmCompiler: true, parserBomb: false };
-    return { stringEncryption: true, antiTamper: true, deadCode: false, vmCompiler: true, parserBomb: false };
+    if (preset === 'High') return { stringEncryption: true, antiTamper: true, antiTamperPlus: false, deadCode: true, vmCompiler: true, parserBomb: true };
+    return { stringEncryption: false, antiTamper: true, antiTamperPlus: false, deadCode: true, vmCompiler: true, parserBomb: true };
 }
 
 export function obfuscateCode(code: string, engine: string, preset: string, customSettings: ObfuscationSettings): string {
@@ -25,11 +26,12 @@ export function obfuscateCode(code: string, engine: string, preset: string, cust
     const vReg = genVar(12);
     const vVM = genVar(12);
 
-    const deadCode1 = settings.deadCode ? getDeadCode(preset) : "";
-    const parserBomb = settings.parserBomb ? getParserBomb(preset) : "";
-    const antiTamperSource = settings.antiTamper ? getAntiTamper(vVM, vReg) : "";
+    const isPlus = settings.antiTamperPlus;
+    const antiTamperSource = (isPlus || settings.antiTamper) ? getAntiTamper(vVM, vReg, preset) : "";
+    
+    const tamperPlusLoop = isPlus ? "\nwhile task.wait(2) do end" : "";
 
-    const fullSource = `${antiTamperSource}\n${userCode}`;
+    const fullSource = `${antiTamperSource}\n${userCode}${tamperPlusLoop}`;
 
     let finalContent = "";
     if (settings.vmCompiler) {
@@ -40,10 +42,20 @@ export function obfuscateCode(code: string, engine: string, preset: string, cust
         finalContent = fullSource;
     }
 
+    const executionLogic = `
+    local success, err = pcall(${vReg}[1])
+    if not success and err then 
+        warn("Vexile Fatal: " .. tostring(err)) 
+    end`.trim();
+
+    const wrappedExecution = isPlus 
+        ? `task.defer(function()\n        ${executionLogic}\n    end)` 
+        : executionLogic;
+
     return `--[[ Protected with Vexile v3.0.0 ]]
 (function()
-    ${parserBomb}
-    ${deadCode1}
+    ${settings.parserBomb ? getParserBomb(preset) : ""}
+    ${settings.deadCode ? getDeadCode(preset) : ""}
     
     local ${vReg} = {}
     local ${vVM} = {}
@@ -51,18 +63,8 @@ export function obfuscateCode(code: string, engine: string, preset: string, cust
     local function bridge()
         local env = getfenv(0)
         local globals = (typeof and getgenv and getgenv()) or _G or {}
-        
         for k, v in pairs(globals) do ${vVM}[k] = v end
         for k, v in pairs(env) do ${vVM}[k] = v end
-        
-        if not ${vVM}.task then
-            ${vVM}.task = {
-                wait = function() end,
-                defer = function(f) f() end,
-                spawn = function(f) f() end
-            }
-        end
-
         ${vVM}["${vVM}"] = ${vVM}
     end
     bridge()
@@ -72,10 +74,6 @@ export function obfuscateCode(code: string, engine: string, preset: string, cust
     end
     
     setfenv(${vReg}[1], ${vVM})
-    local success, err = pcall(${vReg}[1])
-    
-    if not success and err then 
-        warn("Vexile Fatal: " .. tostring(err)) 
-    end
+    ${wrappedExecution}
 end)()`.trim();
 }
