@@ -43,67 +43,37 @@ export class Compiler {
         return { code: this.instructions, constants: this.constants, opMap: this.opMap };
     }
 
-       private compileBlock(stats: Statement[]) {
+    private compileBlock(stats: Statement[]) {
         stats.forEach(stat => {
             const baseReg = this.locals.length;
             switch (stat.type) {
+                case 'Do':
+                    this.compileBlock((stat as any).body);
+                    break;
                 case 'CallStatement':
                     this.compileExpr(stat.expression, baseReg);
                     break;
                 case 'Local':
-                    // Loop through all variables in the local declaration
-                    stat.vars.forEach((vName, i) => {
-                        const expr = stat.init[i];
-                        if (expr) {
-                            this.compileExpr(expr, baseReg + i);
-                        } else {
-                            // If no initializer (e.g., local a, b = 1), set to nil
-                            this.emit('LOADK', baseReg + i, this.addK(null));
-                        }
-                        this.locals.push(vName);
+                    stat.init.forEach((expr, i) => {
+                        this.compileExpr(expr, baseReg + i);
+                        this.locals.push(stat.vars[i]);
                     });
                     break;
                 case 'Assignment':
-                    // 1. Compile all values into temporary registers first
-                    // This prevents issues like: x, y = y, x
-                    const valStartReg = baseReg;
                     stat.init.forEach((expr, i) => {
-                        this.compileExpr(expr, valStartReg + i);
-                    });
-
-                    // 2. Assign those registers to the targets
-                    stat.vars.forEach((target, i) => {
-                        const sourceReg = valStartReg + i;
-                        // If values < targets, the remaining targets get nil
-                        const hasSource = i < stat.init.length;
-
+                        const valReg = baseReg; 
+                        this.compileExpr(expr, valReg);
+                        const target = stat.vars[i];
                         if (target.type === 'Identifier') {
                             const lIdx = this.locals.indexOf(target.name);
-                            if (hasSource) {
-                                if (lIdx !== -1) this.emit('MOVE', lIdx, sourceReg);
-                                else this.emit('SETGLOBAL', sourceReg, this.addK(target.name));
-                            } else {
-                                // Assign nil to remaining variables
-                                const nilK = this.addK(null);
-                                if (lIdx !== -1) this.emit('LOADK', lIdx, nilK);
-                                else {
-                                    this.emit('LOADK', sourceReg, nilK);
-                                    this.emit('SETGLOBAL', sourceReg, nilK);
-                                }
-                            }
+                            if (lIdx !== -1) this.emit('MOVE', lIdx, valReg);
+                            else this.emit('SETGLOBAL', valReg, this.addK(target.name));
                         } else if (target.type === 'Member') {
-                            const objReg = sourceReg + 1;
+                            const objReg = baseReg + 1;
                             this.compileExpr(target.base, objReg);
-                            const keyReg = sourceReg + 2;
+                            const keyReg = baseReg + 2;
                             this.compileExpr(target.identifier, keyReg);
-                            
-                            if (hasSource) {
-                                this.emit('SETTABLE', objReg, keyReg, sourceReg);
-                            } else {
-                                const tempNil = sourceReg + 3;
-                                this.emit('LOADK', tempNil, this.addK(null));
-                                this.emit('SETTABLE', objReg, keyReg, tempNil);
-                            }
+                            this.emit('SETTABLE', objReg, keyReg, valReg);
                         }
                     });
                     break;
@@ -190,24 +160,25 @@ export class Compiler {
                     this.emit('GETTABLE', reg, reg, keyR);
                 }
                 break;
-            // Inside compiler.tsx -> compileExpr (case 'Call')
-case 'Call':
-    const isMethod = e.base.type === 'Member' && e.base.indexer === ':';
-    this.compileExpr(e.base, reg); 
-    
-    const argOffset = isMethod ? 1 : 0;
-    e.args.forEach((arg, i) => {
-        this.compileExpr(arg, reg + argOffset + i + 1);
-    });
+                        case 'Call':
+                const isMethod = e.base.type === 'Member' && e.base.indexer === ':';
+                this.compileExpr(e.base, reg); 
+                
+                const argOffset = isMethod ? 1 : 0;
+                e.args.forEach((arg, i) => {
+                    this.compileExpr(arg, reg + argOffset + i + 1);
+                });
 
-    // IronBrew v2 Mutation: B += A - 1, C += A - 2
-    // B is the absolute stack index where arguments end
-    const mutatedB = (e.args.length + 1 + argOffset) + reg - 1;
-    // C is the absolute stack index where results end (assuming 1 return for now)
-    const mutatedC = 2 + reg - 2; 
+                // --- IRONBREW MUTATION LOGIC ---
+                // In OpCall.cs, Register B is mutated: instruction.B += instruction.A - 1
+                const mutatedB = (e.args.length + 1 + argOffset) + reg - 1;
+                
+                // We use C=1 for now (no returns used) or C=2 (one return)
+                // In OpCall, C is often mutated: instruction.C += instruction.A - 2
+                const mutatedC = 2 + reg - 2; 
 
-    this.emit('CALL', reg, mutatedB, mutatedC);
-    break;
+                this.emit('CALL', reg, mutatedB, mutatedC);
+                break;
             case 'Table':
                 this.emit('NEWTABLE', reg, 0, 0);
                 e.fields.forEach((field, i) => {
