@@ -52,25 +52,41 @@ function getSettings(preset: string, custom: ObfuscationSettings): ObfuscationSe
 export function obfuscateCode(code: string, engine: string, preset: string, customSettings: ObfuscationSettings): string {
     const settings = getSettings(preset, customSettings);
     let userCode = code.replace(/--.*$/gm, "").trim();
+    
     const vReg = genVar(12);
     const vVM = genVar(12);
-    const deadCode1 = settings.deadCode ? getDeadCode(preset) : "";
+
+    // 1. Layer Generation based on Settings
     const parserBomb = settings.parserBomb ? getParserBomb(preset) : "";
+    const deadCode = settings.deadCode ? getDeadCode(preset) : "";
+    
     const isPlus = settings.antiTamperPlus;
     const antiTamperSource = (isPlus || settings.antiTamper) ? `(function() ${getAntiTamper(vVM, vReg, preset)} end)();` : "";
-    const tamperPlusLoop = isPlus ? "\nwhile task.wait(2) do end" : "";
     
-    const fullSource = `${antiTamperSource}\n${deadCode1}\n${userCode}\n${tamperPlusLoop}`;
+    // The "Plus" loop keeps the tamper checks running in the background
+    const tamperPlusLoop = isPlus ? "while task.wait(2) do end" : "";
+    
+    // 2. Build the "In-VM" Source
+    // Order: Tamper -> Dead Code -> Loop -> User Code
+    const fullSource = `${antiTamperSource}\n${deadCode}\n${tamperPlusLoop}\n${userCode}`;
+
     let finalContent = "";
     if (settings.vmCompiler) {
         const compiler = new Compiler(settings);
         const bytecode = compiler.compile(fullSource);
         let vmCode = generateVM(bytecode);
+        
+        // Passing the bridge (vVM) into the VM scope
         finalContent = `local ${vVM} = ...; setfenv(1, ${vVM}); ${vmCode}`;
-    } else { finalContent = fullSource; }
+    } else { 
+        finalContent = fullSource; 
+    }
+
     const coreExecution = `local success, err = pcall(${vReg}[1], ${vVM}) if not success then warn("Vexile Fatal: " .. tostring(err)) end`;
-    return `--[[ Protected with VexileBETA ]]
-${isPlus ? "task.defer(function()" : "(function()"}
+
+    // 3. Final Wrap
+    return `--[[ Protected with Vexile v3.1.0 ]]
+(function()
     ${parserBomb}
     local ${vReg}, ${vVM} = {}, {}
     local function bridge()
@@ -78,16 +94,12 @@ ${isPlus ? "task.defer(function()" : "(function()"}
         local e = getfenv(0)
         for k, v in pairs(g) do ${vVM}[k] = v end
         for k, v in pairs(e) do ${vVM}[k] = v end
-        ${vVM}["debug"] = debug or g.debug
-        ${vVM}["task"] = task or g.task
-        ${vVM}["table"] = table or g.table
-        ${vVM}["pcall"] = pcall or g.pcall
-        ${vVM}["unpack"] = unpack or (table and table.unpack) or g.unpack
+        ${vVM}["debug"], ${vVM}["task"], ${vVM}["table"] = debug or g.debug, task or g.task, table or g.table
+        ${vVM}["pcall"], ${vVM}["unpack"] = pcall or g.pcall, unpack or (table and table.unpack) or g.unpack
         ${vVM}["_G"] = g
     end
     bridge()
     ${vReg}[1] = function(...) ${finalContent} end
     ${coreExecution}
-${isPlus ? "end)" : "end)()"}
-`.trim();
+end)()`.trim();
 }
