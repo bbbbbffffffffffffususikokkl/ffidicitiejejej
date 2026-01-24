@@ -67,7 +67,7 @@ export function obfuscateCode(code: string, engine: string, preset: string, cust
     const antiTamperSource = (isPlus || settings.antiTamper) ? `(function() ${getAntiTamper(vVM, vReg, preset)} end)();` : "";
 
     const tamperPlusLoop = isPlus ? "\nwhile task.wait(2) do end" : "";
-    const fullSource = `${antiTamperSource}\n${deadCode1}\n${tamperPlusLoop}\n${userCode}`;
+    const fullSource = `${antiTamperSource}\n${deadCode1}\n${userCode}\n${tamperPlusLoop}`;
 
     let finalContent = "";
     if (settings.vmCompiler) {
@@ -76,15 +76,16 @@ export function obfuscateCode(code: string, engine: string, preset: string, cust
         let vmCode = generateVM(bytecode);
 
         finalContent = `
-    local bridgeRef = ...;
-    setfenv(1, bridgeRef);
-    ${vmCode}
-`.trim();
+        local ${vVM} = ...;
+        local pcall, unpack = ${vVM}.pcall, ${vVM}.unpack;
+        ${vmCode.replace(/getfenv\(\)/g, vVM)}
+        `.trim();
     } else {
         finalContent = fullSource;
     }
 
     const coreExecution = `
+    setfenv(${vReg}[1], ${vVM})
     local success, err = pcall(${vReg}[1], ${vVM})
     if not success and err then 
         warn("Vexile VM Fatal: " .. tostring(err)) 
@@ -92,9 +93,10 @@ export function obfuscateCode(code: string, engine: string, preset: string, cust
     `.trim();
     
     return `--[[ Protected with Vexile v3.0.0 ]]
-(function()
+${isPlus ? "task.defer(function()" : "(function()"}
     ${parserBomb}
-    local ${vReg}, ${vVM} = {}, {}
+    local ${vReg} = {}
+    local ${vVM} = {}
     
     local function bridge()
         local env = getfenv(0)
@@ -106,9 +108,21 @@ export function obfuscateCode(code: string, engine: string, preset: string, cust
         ${vVM}["table"] = table or globals.table
         ${vVM}["unpack"] = unpack or (table and table.unpack) or globals.unpack
         ${vVM}["task"] = task or globals.task
-        ${vVM}["debug"] = debug or globals.debug
+        ${vVM}["bit32"] = bit32 or globals.bit32
+        ${vVM}["getfenv"] = getfenv or env.getfenv
+        ${vVM}["setfenv"] = setfenv or env.setfenv
+        ${vVM}["pairs"] = pairs or globals.pairs
+        ${vVM}["string"] = string or globals.string
+        ${vVM}["setmetatable"] = setmetatable or globals.setmetatable
+        ${vVM}["type"] = type
+        ${vVM}["typeof"] = typeof
+        ${vVM}["print"] = print or globals.print
+        ${vVM}["warn"] = warn or globals.warn
+        ${vVM}["tostring"] = tostring or globals.tostring
         ${vVM}["pcall"] = pcall or globals.pcall
-        ${vVM}["_G"] = globals
+        ${vVM}["error"] = error or globals.error
+
+        ${vVM}["${vVM}"] = ${vVM}
     end
     bridge()
 
@@ -117,5 +131,6 @@ export function obfuscateCode(code: string, engine: string, preset: string, cust
     end
     
     ${coreExecution}
-end)()`.trim();
+${isPlus ? "end)" : "end)()"}
+`.trim();
 }
