@@ -9,34 +9,46 @@ export function generateVM(bytecode: any): string {
     }).join(',');
 
     return `
-        local Inst, Const, Stk = {${instStr}}, {${constStr}}, {}
+        local Inst, Const, Stk, Env = {${instStr}}, {${constStr}}, {}, getfenv()
         local pc = 1
-        local Env = getfenv(1) 
-        
         local ops = {
             [0] = function(i) Stk[i[2]] = Stk[i[3]] end,
             [1] = function(i) Stk[i[2]] = Const[i[3]+1] end,
-            [2] = function(i) Stk[i[2]] = Env[Const[i[3]+1]] or _G[Const[i[3]+1]] end,
+            [2] = function(i) 
+                local val = Env[Const[i[3]+1]]
+                Stk[i[2]] = val
+            end,
             [3] = function(i) Env[Const[i[3]+1]] = Stk[i[2]] end,
             [4] = function(i) Stk[i[2]] = Stk[i[3]][Stk[i[4]]] end,
             [5] = function(i) Stk[i[2]][Stk[i[3]]] = Stk[i[4]] end,
             [6] = function(i) 
                 local A = i[2]
                 local func = Stk[A]
-                if type(func) ~= "function" then return end
-                
                 local B = i[3]
+                
+                if func == nil then 
+                    warn("Vexile VM: Attempted to call nil at PC=" .. pc - 1)
+                    return
+                end
+                
                 local args = {}
                 if B > 1 then
-                    for idx = 1, B - 1 do args[idx] = Stk[A + idx] end
+                    for idx = 1, B - 1 do
+                        args[idx] = Stk[A + idx]
+                    end
                 end
 
                 local results = {pcall(func, unpack(args))}
+                
                 if results[1] then
                     local C = i[4]
                     if C > 1 then
-                        for idx = 0, C - 2 do Stk[A + idx] = results[idx + 2] end
+                        for idx = 0, C - 2 do
+                            Stk[A + idx] = results[idx + 2]
+                        end
                     end
+                else
+                    warn("Vexile Execution Error at PC=" .. pc-1 .. ": " .. tostring(results[2]))
                 end
             end,
             [7] = function(i) pc = #Inst + 1 end,
@@ -53,7 +65,8 @@ export function generateVM(bytecode: any): string {
             [22] = function(i) Stk[i[2]] = {} end,
         }
         while pc <= #Inst do
-            local i = Inst[pc]; pc = pc + 1
+            local i = Inst[pc]
+            pc = pc + 1
             local f = ops[i[1]]
             if f then f(i) end
         end
