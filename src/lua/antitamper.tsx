@@ -14,57 +14,21 @@ export function obfNum(n: number): string {
 
 export function getParserBomb(preset: string): string {
     if (preset !== "High" && preset !== "Medium") return "";
-
-    const bombDepth = preset === "High" ? 300 : 200; 
-    const bombVar = genVar(8);
-    let bombStr = `0x${Math.floor(Math.random() * 10000).toString(16)}`;
-
-    for (let i = 0; i < bombDepth; i++) {
-        const randVal = Math.floor(Math.random() * 100);
-        
-        if (Math.random() > 0.5) {
-            bombStr = `(${bombStr} + ${obfNum(randVal)})`;
-        } else {
-            bombStr = `(${obfNum(randVal)} + ${bombStr})`;
-        }
-    }
-    return `local ${bombVar} = ${bombStr};`;
+    let bomb = `0x${Math.floor(Math.random()*1000).toString(16)}`;
+    for(let i=0; i<200; i++) bomb = `(${bomb}+${obfNum(1)})`;
+    return `local ${genVar()} = ${bomb};`;
 }
 
 export function getAntiTamper(vmName: string, regName: string, preset: string): string {
     const logic = `
     do
-        local ok, no = false, false
-        pcall(error)
-        ok = true
-        task.defer(function() no = true end)
-        task.wait()
-        if not (ok and no) then error("Tamper Detected!") end
-
-        local ginfo = debug.getinfo
-        local getf = getfenv
-        local smeta = setmetatable
-
-        local info = ginfo(t_wait)
-        if not info or info.what ~= "C" then
-            return error("Tamper Detected!")
-        end
-
-        local env = getf(0)
-        if env.CHECKINDEX or env._G ~= _G then 
-            return error("Tamper Detected!") 
-        end
-
-        local test_tbl = smeta({}, {
-            __index = function() return true end
-        })
-        if not test_tbl.v_check_integrity then 
-            return error("Tamper Detected!") 
-        end
-
-        if _G == nil or type(_G) ~= "table" then
-            return error("Tamper Detected!")
-        end
+        local x={task.defer,task.wait,task.spawn,debug.getinfo,getfenv,setmetatable,pcall}
+        local a=false;x[1](function()a=true end);x[2]()if not a then print("dtc")return error()end
+        local b=false;x[7](function()b=true end)if not b then print("dtc")return error()end
+        local c=x[4](x[2])if not c or c.what~="C"then print("dtc")return error()end
+        local d=false;x[3](function()d=true end);x[2]()if not d then print("dtc")return error()end
+        if x[5]then local e=x[5](0)if e.CHECKINDEX or e._G~=_G then print("dtc")return error()end end
+        local f=x[6]({},{__index=function()return true end})if not f.test then print("dtc")return error()end
     end
     `;
 
