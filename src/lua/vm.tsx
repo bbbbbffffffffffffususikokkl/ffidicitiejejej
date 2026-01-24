@@ -9,8 +9,10 @@ export function generateVM(bytecode: any): string {
     }).join(',');
 
     return `
-        local Inst, Const, Stk, Env = {${instStr}}, {${constStr}}, {}, getfenv()
+        local Inst, Const, Stk = {${instStr}}, {${constStr}}, {}
         local pc = 1
+        local Env = getfenv(1) 
+        
         local ops = {
             [0] = function(i) Stk[i[2]] = Stk[i[3]] end,
             [1] = function(i) Stk[i[2]] = Const[i[3]+1] end,
@@ -19,11 +21,14 @@ export function generateVM(bytecode: any): string {
             [4] = function(i) Stk[i[2]] = Stk[i[3]][Stk[i[4]]] end,
             [5] = function(i) Stk[i[2]][Stk[i[3]]] = Stk[i[4]] end,
             [6] = function(i) 
-                local A, B, C = i[2], i[3], i[4]
+                local A = i[2]
                 local func = Stk[A]
                 if type(func) ~= "function" then return end
+                
+                local B, C = i[3], i[4]
                 local args = {}
                 if B > 1 then for idx = 1, B - 1 do args[idx] = Stk[A + idx] end end
+
                 local results = {pcall(func, unpack(args))}
                 if results[1] and C > 1 then
                     for idx = 0, C - 2 do Stk[A + idx] = results[idx + 2] end
