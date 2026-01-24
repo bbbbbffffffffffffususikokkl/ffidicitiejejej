@@ -48,7 +48,6 @@ function getSettings(preset: string, custom: ObfuscationSettings): ObfuscationSe
         parserBomb: false 
     };
 }
-
 export function obfuscateCode(code: string, engine: string, preset: string, customSettings: ObfuscationSettings): string {
     const settings = getSettings(preset, customSettings);
     let userCode = code.replace(/--.*$/gm, "").trim();
@@ -56,18 +55,13 @@ export function obfuscateCode(code: string, engine: string, preset: string, cust
     const vReg = genVar(12);
     const vVM = genVar(12);
 
-    // 1. Layer Generation based on Settings
     const parserBomb = settings.parserBomb ? getParserBomb(preset) : "";
     const deadCode = settings.deadCode ? getDeadCode(preset) : "";
     
     const isPlus = settings.antiTamperPlus;
     const antiTamperSource = (isPlus || settings.antiTamper) ? `(function() ${getAntiTamper(vVM, vReg, preset)} end)();` : "";
-    
-    // The "Plus" loop keeps the tamper checks running in the background
     const tamperPlusLoop = isPlus ? "while task.wait(2) do end" : "";
     
-    // 2. Build the "In-VM" Source
-    // Order: Tamper -> Dead Code -> Loop -> User Code
     const fullSource = `${antiTamperSource}\n${deadCode}\n${tamperPlusLoop}\n${userCode}`;
 
     let finalContent = "";
@@ -76,15 +70,18 @@ export function obfuscateCode(code: string, engine: string, preset: string, cust
         const bytecode = compiler.compile(fullSource);
         let vmCode = generateVM(bytecode);
         
-        // Passing the bridge (vVM) into the VM scope
-        finalContent = `local ${vVM} = ...; setfenv(1, ${vVM}); ${vmCode}`;
+        finalContent = `
+            local ${vVM} = ...;
+            local pcall, unpack = ${vVM}.pcall, ${vVM}.unpack;
+            setfenv(1, ${vVM});
+            ${vmCode}
+        `.trim();
     } else { 
         finalContent = fullSource; 
     }
 
     const coreExecution = `local success, err = pcall(${vReg}[1], ${vVM}) if not success then warn("Vexile Fatal: " .. tostring(err)) end`;
 
-    // 3. Final Wrap
     return `--[[ Protected with Vexile v3.1.0 ]]
 (function()
     ${parserBomb}
@@ -94,8 +91,10 @@ export function obfuscateCode(code: string, engine: string, preset: string, cust
         local e = getfenv(0)
         for k, v in pairs(g) do ${vVM}[k] = v end
         for k, v in pairs(e) do ${vVM}[k] = v end
+        
+        ${vVM}["pcall"] = pcall or g.pcall
+        ${vVM}["unpack"] = unpack or (table and table.unpack) or g.unpack
         ${vVM}["debug"], ${vVM}["task"], ${vVM}["table"] = debug or g.debug, task or g.task, table or g.table
-        ${vVM}["pcall"], ${vVM}["unpack"] = pcall or g.pcall, unpack or (table and table.unpack) or g.unpack
         ${vVM}["_G"] = g
     end
     bridge()
