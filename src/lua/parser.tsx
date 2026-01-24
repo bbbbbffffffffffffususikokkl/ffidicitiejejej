@@ -21,13 +21,16 @@ export class Parser {
     private consume() { return this.tokens[this.pos++]; }
 
     private expect(val: string) {
-        if (this.peek().value === val) return this.consume();
-        throw new Error(`Expected '${val}', got '${this.peek().value}'`);
+        const t = this.peek();
+        if (t.value === val) return this.consume();
+        throw new Error(`Parser: Unexpected Token '${t.value}' at line ${t.line}. Expected '${val}'`);
     }
 
     private expectIdentifier(): string {
         const t = this.consume();
-        if (t.type !== TokenType.Identifier) throw new Error(`Expected Identifier`);
+        if (t.type !== TokenType.Identifier) {
+            throw new Error(`Parser: Unexpected Token '${t.value}' at line ${t.line}. Expected Identifier`);
+        }
         return t.value;
     }
 
@@ -131,6 +134,10 @@ export class Parser {
         else if (t.value === '{') expr = this.parseTable();
         else if (t.value === 'function') expr = this.parseFunction() as any;
         else if (t.value === '(') { this.consume(); expr = this.parseExpr(); this.expect(')'); }
+        else {
+            // Re-added the unexpected token debug throw
+            throw new Error(`Parser: Unexpected Token '${t.value}' at line ${t.line}`);
+        }
         while (true) {
             const next = this.peek().value;
             if (next === '.') { this.consume(); expr = { type: 'Member', base: expr, indexer: '.', identifier: { type: 'Identifier', name: this.expectIdentifier() } } as any; }
