@@ -76,11 +76,10 @@ export function obfuscateCode(code: string, engine: string, preset: string, cust
         let vmCode = generateVM(bytecode);
 
         finalContent = `
-        local ${vVM} = ...;
-        setfenv(1, ${vVM});
-        local pcall, unpack = ${vVM}.pcall, ${vVM}.unpack;
-        ${vmCode.replace(/getfenv\(\)/g, vVM)}
-        `.trim();
+    local bridgeRef = ...;
+    setfenv(1, bridgeRef);
+    ${vmCode}
+`.trim();
     } else {
         finalContent = fullSource;
     }
