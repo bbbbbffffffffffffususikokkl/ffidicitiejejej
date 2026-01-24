@@ -52,7 +52,8 @@ export default function App() {
     antiTamperPlus: false,
     deadCode: true,
     vmCompiler: true,
-    parserBomb: true
+    parserBomb: true,
+    minifier: true
   });
 
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -125,8 +126,8 @@ export default function App() {
         </h1>
         <div className="flex items-center justify-center gap-3 text-sm font-medium">
           <span className="bg-neutral-900 px-2 py-0.5 rounded border border-neutral-800 text-neutral-400">V1.0</span>
-          <a href="https://discord.gg/vexile" target="_blank" rel="noreferrer" className="text-indigo-400 hover:text-indigo-300 transition-colors">
-            discord.gg/vexile
+          <a href="https://discord.gg/ChvyYFxvDQ" target="_blank" rel="noreferrer" className="text-indigo-400 hover:text-indigo-300 transition-colors">
+            discord.gg/ChvyYFxvDQ
           </a>
         </div>
       </div>
@@ -183,6 +184,7 @@ export default function App() {
                 { id: 'deadCode', label: 'Dead Code' },
                 { id: 'vmCompiler', label: 'VM Compiler' },
                 { id: 'parserBomb', label: 'Parser Bomb' },
+                { id: 'minifier', label: 'Minifier' },
               ].map((item) => (
                 <div key={item.id} className="flex items-center gap-2">
                   <label className="flex items-center gap-3 cursor-pointer group">

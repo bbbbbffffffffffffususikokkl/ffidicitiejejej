@@ -14,6 +14,7 @@ export interface ObfuscationSettings {
     deadCode: boolean;
     vmCompiler: boolean;
     parserBomb: boolean;
+    minifier: boolean;
 }
 
 /**
@@ -29,7 +30,8 @@ function getSettings(preset: string, custom: ObfuscationSettings): ObfuscationSe
             antiTamperPlus: false, 
             deadCode: true, 
             vmCompiler: true, 
-            parserBomb: true 
+            parserBomb: true,
+            minifier: true
         };
     }
     // Default / Medium preset logic
@@ -40,7 +42,8 @@ function getSettings(preset: string, custom: ObfuscationSettings): ObfuscationSe
             antiTamperPlus: false, 
             deadCode: true, 
             vmCompiler: true, 
-            parserBomb: true 
+            parserBomb: true,
+            minifier: true
         };
     }
     return { 
@@ -49,7 +52,8 @@ function getSettings(preset: string, custom: ObfuscationSettings): ObfuscationSe
         antiTamperPlus: false, 
         deadCode: true, 
         vmCompiler: true, 
-        parserBomb: false 
+        parserBomb: false,
+        minifier: true
     };
 }
 
@@ -91,8 +95,9 @@ export function obfuscateCode(code: string, engine: string, preset: string, cust
     end
     `.trim();
     
-    return `--[[ Protected with Vexile v3.0.0 ]]
-(function()
+    const watermark = `--[[ Protected with Vexile v1.0 (discord.gg/ChvyYFxvDQ) ]]`;
+    
+    let protectedBody = `(function()
     ${parserBomb}
     local ${vReg}, ${vVM} = {}, {}
     
@@ -118,4 +123,15 @@ export function obfuscateCode(code: string, engine: string, preset: string, cust
     
     ${coreExecution}
 end)()`.trim();
+
+    if (settings.minifier) {
+        protectedBody = protectedBody
+            .split('\n')
+            .map(line => line.trim())
+            .filter(line => line.length > 0)
+            .join(' ');
+            
+        return `${watermark}\n${protectedBody}`;
+    }
+    return `${watermark}\n${protectedBody}`;
 }
