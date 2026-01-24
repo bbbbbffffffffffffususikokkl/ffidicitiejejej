@@ -80,23 +80,25 @@ export function obfuscateCode(code: string, engine: string, preset: string, cust
         let vmCode = generateVM(bytecode);
 
         finalContent = `
-    local bridgeRef = ...;
-    setfenv(1, bridgeRef);
-    ${vmCode}
-`.trim();
+            local bridgeRef = ...;
+            local pcall, unpack = bridgeRef.pcall, bridgeRef.unpack;
+            setfenv(1, bridgeRef);
+            ${vmCode}
+        `.trim();
     } else {
         finalContent = fullSource;
     }
 
     const coreExecution = `
-    local success, err = pcall(${vReg}[1], ${vVM})
-    if not success and err then 
-        warn("Vexile VM Fatal: " .. tostring(err)) 
-    end
+        local success, err = pcall(${vReg}[1], ${vVM})
+        if not success and err then 
+            warn("Vexile VM Fatal: " .. tostring(err)) 
+        end
     `.trim();
     
-    return `--[[ Protected with Vexile v1.0 (discord.gg/ChvyYFxvDQ) ]]
-(function()
+    const watermark = `--[[ Protected with Vexile v1.0 (discord.gg/ChvyYFxvDQ) ]]`;
+    
+    let protectedBody = `(function()
     ${parserBomb}
     local ${vReg}, ${vVM} = {}, {}
     
@@ -122,4 +124,16 @@ export function obfuscateCode(code: string, engine: string, preset: string, cust
     
     ${coreExecution}
 end)()`.trim();
+
+    if (settings.minifier) {
+        protectedBody = protectedBody
+            .split('\n')
+            .map(line => line.trim())
+            .filter(line => line.length > 0)
+            .join(' ');
+            
+        return `${watermark}\n${protectedBody}`;
+    }
+
+    return `${watermark}\n${protectedBody}`;
 }
