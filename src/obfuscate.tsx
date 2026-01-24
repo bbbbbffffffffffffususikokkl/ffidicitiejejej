@@ -67,7 +67,7 @@ export function obfuscateCode(code: string, engine: string, preset: string, cust
     const antiTamperSource = (isPlus || settings.antiTamper) ? `(function() ${getAntiTamper(vVM, vReg, preset)} end)();` : "";
 
     const tamperPlusLoop = isPlus ? "\nwhile task.wait(2) do end" : "";
-    const fullSource = `${antiTamperSource}\n${deadCode1}\n${userCode}\n${tamperPlusLoop}`;
+    const fullSource = `${antiTamperSource}\n${deadCode1}\n${tamperPlusLoop}\n${userCode}`;
 
     let finalContent = "";
     if (settings.vmCompiler) {
