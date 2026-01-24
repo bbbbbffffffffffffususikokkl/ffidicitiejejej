@@ -52,6 +52,7 @@ function getSettings(preset: string, custom: ObfuscationSettings): ObfuscationSe
         parserBomb: false 
     };
 }
+
 export function obfuscateCode(code: string, engine: string, preset: string, customSettings: ObfuscationSettings): string {
     const settings = getSettings(preset, customSettings);
     let userCode = code.replace(/--.*$/gm, "").trim();
@@ -66,8 +67,6 @@ export function obfuscateCode(code: string, engine: string, preset: string, cust
     const antiTamperSource = (isPlus || settings.antiTamper) ? `(function() ${getAntiTamper(vVM, vReg, preset)} end)();` : "";
 
     const tamperPlusLoop = isPlus ? "\nwhile task.wait(2) do end" : "";
-    
-    // By merging antiTamperSource here, it gets compiled into the Bytecode
     const fullSource = `${antiTamperSource}\n${deadCode1}\n${userCode}\n${tamperPlusLoop}`;
 
     let finalContent = "";
@@ -93,7 +92,7 @@ export function obfuscateCode(code: string, engine: string, preset: string, cust
     end
     `.trim();
     
-    return `--[[ Protected with Vexile v1.0 ]]
+    return `--[[ Protected with Vexile v3.0.0 ]]
 ${isPlus ? "task.defer(function()" : "(function()"}
     ${parserBomb}
     local ${vReg} = {}
@@ -110,7 +109,6 @@ ${isPlus ? "task.defer(function()" : "(function()"}
         ${vVM}["unpack"] = unpack or (table and table.unpack) or globals.unpack
         ${vVM}["task"] = task or globals.task
         ${vVM}["bit32"] = bit32 or globals.bit32
-        ${vVM}["debug"] = debug or globals.debug
         ${vVM}["getfenv"] = getfenv or env.getfenv
         ${vVM}["setfenv"] = setfenv or env.setfenv
         ${vVM}["pairs"] = pairs or globals.pairs
