@@ -95,9 +95,8 @@ export function obfuscateCode(code: string, engine: string, preset: string, cust
     end
     `.trim();
     
-    const watermark = `--[[ Protected with Vexile v1.0 (discord.gg/ChvyYFxvDQ) ]]`;
-    
-    let protectedBody = `(function()
+    return `--[[ Protected with Vexile v1.0 (discord.gg/ChvyYFxvDQ) ]]
+(function()
     ${parserBomb}
     local ${vReg}, ${vVM} = {}, {}
     
@@ -123,15 +122,4 @@ export function obfuscateCode(code: string, engine: string, preset: string, cust
     
     ${coreExecution}
 end)()`.trim();
-
-    if (settings.minifier) {
-        protectedBody = protectedBody
-            .split('\n')
-            .map(line => line.trim())
-            .filter(line => line.length > 0)
-            .join(' ');
-            
-        return `${watermark}\n${protectedBody}`;
-    }
-    return `${watermark}\n${protectedBody}`;
 }
