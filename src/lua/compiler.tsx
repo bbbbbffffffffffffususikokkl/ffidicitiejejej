@@ -43,37 +43,67 @@ export class Compiler {
         return { code: this.instructions, constants: this.constants, opMap: this.opMap };
     }
 
-    private compileBlock(stats: Statement[]) {
+       private compileBlock(stats: Statement[]) {
         stats.forEach(stat => {
             const baseReg = this.locals.length;
             switch (stat.type) {
-                case 'Do':
-                    this.compileBlock((stat as any).body);
-                    break;
                 case 'CallStatement':
                     this.compileExpr(stat.expression, baseReg);
                     break;
                 case 'Local':
-                    stat.init.forEach((expr, i) => {
-                        this.compileExpr(expr, baseReg + i);
-                        this.locals.push(stat.vars[i]);
+                    // Loop through all variables in the local declaration
+                    stat.vars.forEach((vName, i) => {
+                        const expr = stat.init[i];
+                        if (expr) {
+                            this.compileExpr(expr, baseReg + i);
+                        } else {
+                            // If no initializer (e.g., local a, b = 1), set to nil
+                            this.emit('LOADK', baseReg + i, this.addK(null));
+                        }
+                        this.locals.push(vName);
                     });
                     break;
                 case 'Assignment':
+                    // 1. Compile all values into temporary registers first
+                    // This prevents issues like: x, y = y, x
+                    const valStartReg = baseReg;
                     stat.init.forEach((expr, i) => {
-                        const valReg = baseReg; 
-                        this.compileExpr(expr, valReg);
-                        const target = stat.vars[i];
+                        this.compileExpr(expr, valStartReg + i);
+                    });
+
+                    // 2. Assign those registers to the targets
+                    stat.vars.forEach((target, i) => {
+                        const sourceReg = valStartReg + i;
+                        // If values < targets, the remaining targets get nil
+                        const hasSource = i < stat.init.length;
+
                         if (target.type === 'Identifier') {
                             const lIdx = this.locals.indexOf(target.name);
-                            if (lIdx !== -1) this.emit('MOVE', lIdx, valReg);
-                            else this.emit('SETGLOBAL', valReg, this.addK(target.name));
+                            if (hasSource) {
+                                if (lIdx !== -1) this.emit('MOVE', lIdx, sourceReg);
+                                else this.emit('SETGLOBAL', sourceReg, this.addK(target.name));
+                            } else {
+                                // Assign nil to remaining variables
+                                const nilK = this.addK(null);
+                                if (lIdx !== -1) this.emit('LOADK', lIdx, nilK);
+                                else {
+                                    this.emit('LOADK', sourceReg, nilK);
+                                    this.emit('SETGLOBAL', sourceReg, nilK);
+                                }
+                            }
                         } else if (target.type === 'Member') {
-                            const objReg = baseReg + 1;
+                            const objReg = sourceReg + 1;
                             this.compileExpr(target.base, objReg);
-                            const keyReg = baseReg + 2;
+                            const keyReg = sourceReg + 2;
                             this.compileExpr(target.identifier, keyReg);
-                            this.emit('SETTABLE', objReg, keyReg, valReg);
+                            
+                            if (hasSource) {
+                                this.emit('SETTABLE', objReg, keyReg, sourceReg);
+                            } else {
+                                const tempNil = sourceReg + 3;
+                                this.emit('LOADK', tempNil, this.addK(null));
+                                this.emit('SETTABLE', objReg, keyReg, tempNil);
+                            }
                         }
                     });
                     break;

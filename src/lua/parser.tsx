@@ -51,14 +51,28 @@ export class Parser {
             else if (t.value === 'if') stats.push(this.parseIf() as any);
             else if (t.value === 'while') stats.push(this.parseWhile()); // Added While handling
             else if (t.value === 'do') stats.push(this.parseDo()); 
-            else {
-                const expr = this.parseExpr();
+                        else {
+                const exprs: Expression[] = [];
+                // Collect target variables/expressions: a, b[1], c.d
+                do {
+                    exprs.push(this.parseExpr());
+                } while (this.peek().value === ',' && this.consume());
+
                 if (this.peek().value === '=') {
                     this.consume();
-                    const val = this.parseExpr();
-                    stats.push({ type: 'Assignment', vars: [expr], init: [val] } as any);
+                    const values: Expression[] = [];
+                    // Collect values: = 1, 2, 3
+                    do {
+                        values.push(this.parseExpr());
+                    } while (this.peek().value === ',' && this.consume());
+                    
+                    stats.push({ type: 'Assignment', vars: exprs, init: values } as any);
                 } else {
-                    stats.push({ type: 'CallStatement', expression: expr } as any);
+                    // It's a function call (only valid if there was only one expr)
+                    if (exprs.length > 1) {
+                        throw new Error(`Syntax error: unexpected ',' in expression statement`);
+                    }
+                    stats.push({ type: 'CallStatement', expression: exprs[0] } as any);
                 }
             }
         }
@@ -82,15 +96,23 @@ export class Parser {
         return { type: 'Do', body } as any; 
     }
 
-    private parseLocal(): Statement {
-        this.consume(); 
-        const name = this.expectIdentifier();
+        private parseLocal(): Statement {
+        this.consume();
+        const names: string[] = [];
+        
+        do {
+            names.push(this.expectIdentifier());
+        } while (this.peek().value === ',' && this.consume());
+
         let init: Expression[] = [];
         if (this.peek().value === '=') {
             this.consume();
-            init.push(this.parseExpr());
+            do {
+                init.push(this.parseExpr());
+            } while (this.peek().value === ',' && this.consume());
         }
-        return { type: 'Local', vars: [name], init } as any;
+        
+        return { type: 'Local', vars: names, init } as any;
     }
 
     private parseExpr(minPrec = 0): Expression {
