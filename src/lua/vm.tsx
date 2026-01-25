@@ -2,6 +2,7 @@ export function generateVM(bytecode: any): string {
     const { code, constants } = bytecode;
     const instStr = code.map((i: any) => `{${i.op},${i.a},${i.b},${i.c}}`).join(',');
     const constStr = constants.map((c: any) => {
+        // Wrap in a pcall or ensure they are computed values
         if (typeof c === 'string' && c.startsWith('(function')) return c;
         if (typeof c === 'string') return `[=[${c}]=]`;
         if (c === null) return "nil";
@@ -9,7 +10,8 @@ export function generateVM(bytecode: any): string {
     }).join(',');
 
     return `
-        local Inst, Const, Stk = {${instStr}}, {${constStr}}, {}
+        local Inst, Const = {${instStr}}, {${constStr}}
+        local Stk = {}
         local pc = 1
         local Env = getfenv(1) 
         
