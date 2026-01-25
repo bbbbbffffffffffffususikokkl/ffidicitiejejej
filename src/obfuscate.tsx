@@ -81,9 +81,14 @@ export function obfuscateCode(code: string, engine: string, preset: string, cust
 
         finalContent = `
             local bridgeRef = ...;
+            local bit32, string, pairs = bridgeRef.bit32, bridgeRef.string, bridgeRef.pairs;
             local pcall, unpack = bridgeRef.pcall, bridgeRef.unpack;
+            
+            ${vmCode.split('local pc = 1')[0]}
+            
             setfenv(1, bridgeRef);
-            ${vmCode}
+            local pc = 1;
+            ${vmCode.split('local pc = 1')[1]}
         `.trim();
     } else {
         finalContent = fullSource;
