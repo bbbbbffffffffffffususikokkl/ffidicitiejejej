@@ -79,11 +79,11 @@ export function obfuscateCode(code: string, engine: string, preset: string, cust
         const bytecode = compiler.compile(fullSource);
         let vmCode = generateVM(bytecode);
 
-        // Patched: Explicitly defining libraries for the 'Const' table functions
         finalContent = `
             local bridgeRef = ...;
             local bit32, string, pairs = bridgeRef.bit32, bridgeRef.string, bridgeRef.pairs;
             local pcall, unpack, type = bridgeRef.pcall, bridgeRef.unpack, bridgeRef.type;
+            local getfenv, setfenv = bridgeRef.getfenv, bridgeRef.setfenv;
             
             ${vmCode.split('local pc = 1')[0]}
             
@@ -102,7 +102,7 @@ export function obfuscateCode(code: string, engine: string, preset: string, cust
         end
     `.trim();
     
-    const watermark = `--[[ Protected with Vexile v1.0 (discord.gg/ChvyYFxvDQ) ]]`;
+    const watermark = \`--[[ Protected with Vexile v1.0 (discord.gg/ChvyYFxvDQ) ]]\`;
     
     let protectedBody = `(function()
     ${parserBomb}
@@ -124,6 +124,8 @@ export function obfuscateCode(code: string, engine: string, preset: string, cust
         ${vVM}["string"] = string or globals.string or env.string
         ${vVM}["pairs"] = pairs or globals.pairs or env.pairs
         ${vVM}["type"] = type or globals.type or env.type
+        ${vVM}["getfenv"] = getfenv or env.getfenv
+        ${vVM}["setfenv"] = setfenv or env.setfenv
         ${vVM}["_G"] = globals
     end
     bridge()
@@ -136,9 +138,9 @@ export function obfuscateCode(code: string, engine: string, preset: string, cust
 end)()`.trim();
 
     if (settings.minifier) {
-        protectedBody = protectedBody.split('\n').map(l => l.trim()).filter(l => l.length > 0).join(' ');
-        return watermark + '\n' + protectedBody;
+        protectedBody = protectedBody.split('\\n').map(l => l.trim()).filter(l => l.length > 0).join(' ');
+        return watermark + '\\n' + protectedBody;
     }
 
-    return watermark + '\n' + protectedBody;
+    return watermark + '\\n' + protectedBody;
 }
