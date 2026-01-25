@@ -2,7 +2,6 @@ export function generateVM(bytecode: any): string {
     const { code, constants } = bytecode;
     const instStr = code.map((i: any) => `{${i.op},${i.a},${i.b},${i.c}}`).join(',');
     const constStr = constants.map((c: any) => {
-        // Wrap in a pcall or ensure they are computed values
         if (typeof c === 'string' && c.startsWith('(function')) return c;
         if (typeof c === 'string') return `[=[${c}]=]`;
         if (c === null) return "nil";
@@ -18,7 +17,10 @@ export function generateVM(bytecode: any): string {
         local ops = {
             [0] = function(i) Stk[i[2]] = Stk[i[3]] end,
             [1] = function(i) Stk[i[2]] = Const[i[3]+1] end,
-            [2] = function(i) Stk[i[2]] = Env[Const[i[3]+1]] or _G[Const[i[3]+1]] end,
+            [2] = function(i) 
+                local k = Const[i[3]+1]
+                Stk[i[2]] = Env[k] or _G[k] 
+            end,
             [3] = function(i) Env[Const[i[3]+1]] = Stk[i[2]] end,
             [4] = function(i) Stk[i[2]] = Stk[i[3]][Stk[i[4]]] end,
             [5] = function(i) Stk[i[2]][Stk[i[3]]] = Stk[i[4]] end,
