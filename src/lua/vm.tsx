@@ -19,9 +19,9 @@ export function generateVM(bytecode: any): string {
             [1] = function(i) Stk[i[2]] = Const[i[3]+1] end,
             [2] = function(i) 
                 local k = Const[i[3]+1]
-                Stk[i[2]] = Env[k] or _G[k] 
+                Stk[i[2]] = (type(Env) == "table" and Env[k]) or _G[k] 
             end,
-            [3] = function(i) Env[Const[i[3]+1]] = Stk[i[2]] end,
+            [3] = function(i) if type(Env) == "table" then Env[Const[i[3]+1]] = Stk[i[2]] end end,
             [4] = function(i) Stk[i[2]] = Stk[i[3]][Stk[i[4]]] end,
             [5] = function(i) Stk[i[2]][Stk[i[3]]] = Stk[i[4]] end,
             [6] = function(i) 
