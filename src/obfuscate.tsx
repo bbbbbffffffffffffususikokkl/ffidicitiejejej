@@ -79,10 +79,11 @@ export function obfuscateCode(code: string, engine: string, preset: string, cust
         const bytecode = compiler.compile(fullSource);
         let vmCode = generateVM(bytecode);
 
+        // Patched: Explicitly defining libraries for the 'Const' table functions
         finalContent = `
             local bridgeRef = ...;
             local bit32, string, pairs = bridgeRef.bit32, bridgeRef.string, bridgeRef.pairs;
-            local pcall, unpack = bridgeRef.pcall, bridgeRef.unpack;
+            local pcall, unpack, type = bridgeRef.pcall, bridgeRef.unpack, bridgeRef.type;
             
             ${vmCode.split('local pc = 1')[0]}
             
@@ -119,6 +120,10 @@ export function obfuscateCode(code: string, engine: string, preset: string, cust
         ${vVM}["task"] = task or globals.task
         ${vVM}["debug"] = debug or globals.debug
         ${vVM}["pcall"] = pcall or globals.pcall
+        ${vVM}["bit32"] = bit32 or globals.bit32 or env.bit32
+        ${vVM}["string"] = string or globals.string or env.string
+        ${vVM}["pairs"] = pairs or globals.pairs or env.pairs
+        ${vVM}["type"] = type or globals.type or env.type
         ${vVM}["_G"] = globals
     end
     bridge()
@@ -131,14 +136,9 @@ export function obfuscateCode(code: string, engine: string, preset: string, cust
 end)()`.trim();
 
     if (settings.minifier) {
-        protectedBody = protectedBody
-            .split('\n')
-            .map(line => line.trim())
-            .filter(line => line.length > 0)
-            .join(' ');
-            
-        return `${watermark}\n${protectedBody}`;
+        protectedBody = protectedBody.split('\n').map(l => l.trim()).filter(l => l.length > 0).join(' ');
+        return watermark + '\n' + protectedBody;
     }
 
-    return `${watermark}\n${protectedBody}`;
+    return watermark + '\n' + protectedBody;
 }
