@@ -25,17 +25,13 @@ export function generateVM(bytecode: any): string {
             [4] = function(i) Stk[i[2]] = Stk[i[3]][Stk[i[4]]] end,
             [5] = function(i) Stk[i[2]][Stk[i[3]]] = Stk[i[4]] end,
             [6] = function(i) 
-                local A = i[2]
-                local func = Stk[A]
+                local func = Stk[i[2]]
                 if type(func) ~= "function" then return end
-                
-                local B, C = i[3], i[4]
                 local args = {}
-                if B > 1 then for idx = 1, B - 1 do args[idx] = Stk[A + idx] end end
-
-                local results = {pcall(func, unpack(args))}
-                if results[1] and C > 1 then
-                    for idx = 0, C - 2 do Stk[A + idx] = results[idx + 2] end
+                if i[3] > 1 then for idx = 1, i[3] - 1 do args[idx] = Stk[i[2] + idx] end end
+                local res = {pcall(func, unpack(args))}
+                if res[1] and i[4] > 1 then
+                    for idx = 0, i[4] - 2 do Stk[i[2] + idx] = res[idx + 2] end
                 end
             end,
             [7] = function(i) pc = #Inst + 1 end,
@@ -43,6 +39,8 @@ export function generateVM(bytecode: any): string {
             [9] = function(i) Stk[i[2]] = Stk[i[3]] - Stk[i[4]] end,
             [10] = function(i) Stk[i[2]] = Stk[i[3]] * Stk[i[4]] end,
             [11] = function(i) Stk[i[2]] = Stk[i[3]] / Stk[i[4]] end,
+            [12] = function(i) Stk[i[2]] = Stk[i[3]] % Stk[i[4]] end,
+            [13] = function(i) Stk[i[2]] = Stk[i[3]] ^ Stk[i[4]] end,
             [14] = function(i) Stk[i[2]] = -Stk[i[3]] end,
             [15] = function(i) Stk[i[2]] = not Stk[i[3]] end,
             [16] = function(i) Stk[i[2]] = #Stk[i[3]] end,
