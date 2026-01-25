@@ -12,7 +12,8 @@ export function generateVM(bytecode: any): string {
         local Inst, Const = {${instStr}}, {${constStr}}
         local Stk = {}
         local pc = 1
-        local Env = getfenv(1) 
+        local Env = getfenv(1)
+        if #Inst == 0 then return end
         
         local ops = {
             [0] = function(i) Stk[i[2]] = Stk[i[3]] end,
@@ -51,6 +52,7 @@ export function generateVM(bytecode: any): string {
         }
         while pc <= #Inst do
             local i = Inst[pc]; pc = pc + 1
+            if not i then break end
             local f = ops[i[1]]
             if f then f(i) end
         end
