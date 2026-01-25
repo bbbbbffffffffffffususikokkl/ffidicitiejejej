@@ -102,7 +102,8 @@ export function obfuscateCode(code: string, engine: string, preset: string, cust
         end
     `.trim();
     
-    const watermark = \`--[[ Protected with Vexile v1.0 (discord.gg/ChvyYFxvDQ) ]]\`;
+    // FIXED LINE: Removed the backslashes that caused the syntax error
+    const watermark = `--[[ Protected with Vexile v1.0 (discord.gg/ChvyYFxvDQ) ]]`;
     
     let protectedBody = `(function()
     ${parserBomb}
@@ -138,9 +139,9 @@ export function obfuscateCode(code: string, engine: string, preset: string, cust
 end)()`.trim();
 
     if (settings.minifier) {
-        protectedBody = protectedBody.split('\\n').map(l => l.trim()).filter(l => l.length > 0).join(' ');
-        return watermark + '\\n' + protectedBody;
+        protectedBody = protectedBody.split('\n').map(l => l.trim()).filter(l => l.length > 0).join(' ');
+        return watermark + '\n' + protectedBody;
     }
 
-    return watermark + '\\n' + protectedBody;
+    return watermark + '\n' + protectedBody;
 }
