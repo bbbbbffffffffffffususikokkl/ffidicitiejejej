@@ -94,16 +94,31 @@ export class Parser {
     }
 
     private parseLocal(): Statement {
+    this.consume();
+    
+    if (this.peek().value === 'function') {
         this.consume();
-        const names: string[] = [];
-        do { names.push(this.expectIdentifier()); } while (this.peek().value === ',' && this.consume());
-        let init: Expression[] = [];
-        if (this.peek().value === '=') {
-            this.consume();
-            do { init.push(this.parseExpr()); } while (this.peek().value === ',' && this.consume());
+        const name = this.expectIdentifier();
+        this.expect('(');
+        const params: string[] = [];
+        if (this.peek().value !== ')') {
+            do { params.push(this.expectIdentifier()); } while (this.peek().value === ',' && this.consume());
         }
-        return { type: 'Local', vars: names, init } as any;
+        this.expect(')');
+        const body = this.parseBlock(['end']);
+        this.expect('end');
+        return { type: 'LocalFunction', name, params, body } as any;
     }
+    
+    const names: string[] = [];
+    do { names.push(this.expectIdentifier()); } while (this.peek().value === ',' && this.consume());
+    let init: Expression[] = [];
+    if (this.peek().value === '=') {
+        this.consume();
+        do { init.push(this.parseExpr()); } while (this.peek().value === ',' && this.consume());
+    }
+    return { type: 'Local', vars: names, init } as any;
+}
 
     private parseExpr(minPrec = 0): Expression {
         let left = this.parsePrimary();
