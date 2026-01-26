@@ -44,64 +44,59 @@ export class Compiler {
         return { code: this.instructions, constants: this.constants, opMap: this.opMap };
     }
 
-       private compileBlock(stats: Statement[]) {
+    private compileBlock(stats: Statement[]) {
         stats.forEach(stat => {
             const baseReg = this.locals.length;
             switch (stat.type) {
                 case 'CallStatement':
                     this.compileExpr(stat.expression, baseReg);
                     break;
-                // Inside compiler.tsx -> compileBlock
-case 'Function':
-    const gFuncName = (stat as any).name.name;
-    const tempReg = this.locals.length;
+                case 'Function': {
+                    // FIX 1: Add support for global function declarations
+                    const gFuncName = (stat as any).name.name;
+                    const tempReg = this.locals.length;
 
-    // 1. Compile the function as an expression
-    this.compileExpr({
-        type: 'FunctionExpression',
-        params: (stat as any).params,
-        body: (stat as any).body
-    } as any, tempReg);
+                    // 1. Compile the function body into a temporary register
+                    this.compileExpr({
+                        type: 'FunctionExpression',
+                        params: (stat as any).params,
+                        body: (stat as any).body
+                    } as any, tempReg);
 
-    // 2. Assign the resulting function to a Global variable
-    this.emit('SETGLOBAL', tempReg, this.addK(gFuncName));
-    break;
+                    // 2. Assign that register to the Global variable
+                    this.emit('SETGLOBAL', tempReg, this.addK(gFuncName));
+                    break;
+                }
                 case 'Local':
-                    // Loop through all variables in the local declaration
                     stat.vars.forEach((vName, i) => {
                         const expr = stat.init[i];
                         if (expr) {
                             this.compileExpr(expr, baseReg + i);
                         } else {
-                            // If no initializer (e.g., local a, b = 1), set to nil
                             this.emit('LOADK', baseReg + i, this.addK(null));
                         }
                         this.locals.push(vName);
                     });
                     break;
-case 'LocalFunction':
-    const funcName = (stat as any).name.name;
-    const reg = this.locals.length;
-    this.locals.push(funcName);
+                case 'LocalFunction':
+                    const funcName = (stat as any).name.name;
+                    const reg = this.locals.length;
+                    this.locals.push(funcName);
 
-    this.compileExpr({
-        type: 'FunctionExpression',
-        params: (stat as any).params,
-        body: (stat as any).body
-    } as any, reg);
-    break;
+                    this.compileExpr({
+                        type: 'FunctionExpression',
+                        params: (stat as any).params,
+                        body: (stat as any).body
+                    } as any, reg);
+                    break;
                 case 'Assignment':
-                    // 1. Compile all values into temporary registers first
-                    // This prevents issues like: x, y = y, x
                     const valStartReg = baseReg;
                     stat.init.forEach((expr, i) => {
                         this.compileExpr(expr, valStartReg + i);
                     });
 
-                    // 2. Assign those registers to the targets
                     stat.vars.forEach((target, i) => {
                         const sourceReg = valStartReg + i;
-                        // If values < targets, the remaining targets get nil
                         const hasSource = i < stat.init.length;
 
                         if (target.type === 'Identifier') {
@@ -110,7 +105,6 @@ case 'LocalFunction':
                                 if (lIdx !== -1) this.emit('MOVE', lIdx, sourceReg);
                                 else this.emit('SETGLOBAL', sourceReg, this.addK(target.name));
                             } else {
-                                // Assign nil to remaining variables
                                 const nilK = this.addK(null);
                                 if (lIdx !== -1) this.emit('LOADK', lIdx, nilK);
                                 else {
@@ -137,24 +131,16 @@ case 'LocalFunction':
                 case 'If':
                     stat.clauses.forEach((clause) => {
                         this.compileExpr(clause.condition, baseReg);
-                        // Logic for Jumps in If would go here
                         this.compileBlock(clause.body);
                     });
                     break;
                 case 'ForGeneric':
-    // 1. Compile the iterator (e.g., pairs(table))
-    stat.iterators.forEach((expr, i) => this.compileExpr(expr, baseReg + i));
-    
-    // 2. Register the loop variables (e.g., k, v) into the local scope
-    const oldLocalsCount = this.locals.length;
-    stat.variables.forEach(vName => this.locals.push(vName));
-    
-    // 3. Compile the loop body
-    this.compileBlock(stat.body);
-    
-    // 4. Pop the loop variables after the loop ends to prevent leaks
-    this.locals.splice(oldLocalsCount);
-    break;
+                    stat.iterators.forEach((expr, i) => this.compileExpr(expr, baseReg + i));
+                    const oldLocalsCount = this.locals.length;
+                    stat.variables.forEach(vName => this.locals.push(vName));
+                    this.compileBlock(stat.body);
+                    this.locals.splice(oldLocalsCount);
+                    break;
                 case 'Return':
                     stat.args.forEach((arg, i) => this.compileExpr(arg, baseReg + i));
                     this.emit('RETURN', baseReg, stat.args.length + 1);
@@ -202,21 +188,21 @@ case 'LocalFunction':
                 }
                 break;
              case 'FunctionExpression':
-    const subCompiler = new Compiler(this.settings);
-    subCompiler.compileBlock(e.body); 
-    subCompiler.emit('RETURN', 0, 1);
-    
-    const subBytecode = { 
-        code: (subCompiler as any).instructions, 
-        constants: (subCompiler as any).constants 
-    };
+                const subCompiler = new Compiler(this.settings);
+                subCompiler.compileBlock(e.body); 
+                subCompiler.emit('RETURN', 0, 1);
+                
+                const subBytecode = { 
+                    code: (subCompiler as any).instructions, 
+                    constants: (subCompiler as any).constants 
+                };
 
-    const subVM = `(function(...) 
-        ${generateVM(subBytecode)} 
-    end)`;
-    
-    this.emit('LOADK', reg, this.addK(subVM));
-    break;
+                const subVM = `(function(...) 
+                    ${generateVM(subBytecode)} 
+                end)`;
+                
+                this.emit('LOADK', reg, this.addK(subVM));
+                break;
             case 'Member':
                 this.compileExpr(e.base, reg);
                 const keyR = reg + 1;
@@ -233,24 +219,24 @@ case 'LocalFunction':
                     this.emit('GETTABLE', reg, reg, keyR);
                 }
                 break;
-            // Inside compiler.tsx -> compileExpr (case 'Call')
-case 'Call':
-    const isMethod = e.base.type === 'Member' && e.base.indexer === ':';
-    this.compileExpr(e.base, reg); 
-    
-    const argOffset = isMethod ? 1 : 0;
-    e.args.forEach((arg, i) => {
-        this.compileExpr(arg, reg + argOffset + i + 1);
-    });
+            case 'Call':
+                // FIX 2: Correct CALL Logic (Standard Lua 5.1)
+                const isMethod = e.base.type === 'Member' && e.base.indexer === ':';
+                this.compileExpr(e.base, reg); 
+                
+                const argOffset = isMethod ? 1 : 0;
+                e.args.forEach((arg, i) => {
+                    this.compileExpr(arg, reg + argOffset + i + 1);
+                });
 
-    // IronBrew v2 Mutation: B += A - 1, C += A - 2
-    // B is the absolute stack index where arguments end
-    const mutatedB = (e.args.length + 1 + argOffset) + reg - 1;
-    // C is the absolute stack index where results end (assuming 1 return for now)
-    const mutatedC = 2 + reg - 2; 
+                // Standard Calculation:
+                // B = Number of Arguments + 1 (Function Register + Args)
+                // C = Number of Results + 1 (Assuming 1 result needed)
+                const bCount = e.args.length + argOffset + 1;
+                const cCount = 2; 
 
-    this.emit('CALL', reg, mutatedB, mutatedC);
-    break;
+                this.emit('CALL', reg, bCount, cCount);
+                break;
             case 'Table':
                 this.emit('NEWTABLE', reg, 0, 0);
                 e.fields.forEach((field, i) => {
