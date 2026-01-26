@@ -63,6 +63,17 @@ export class Compiler {
                         this.locals.push(vName);
                     });
                     break;
+case 'LocalFunction':
+    const funcName = (stat as any).name.name;
+    const reg = this.locals.length;
+    this.locals.push(funcName);
+
+    this.compileExpr({
+        type: 'FunctionExpression',
+        params: (stat as any).params,
+        body: (stat as any).body
+    } as any, reg);
+    break;
                 case 'Assignment':
                     // 1. Compile all values into temporary registers first
                     // This prevents issues like: x, y = y, x
@@ -174,6 +185,22 @@ export class Compiler {
                     if (bOps[e.operator]) this.emit(bOps[e.operator], reg, reg, reg + 1);
                 }
                 break;
+             case 'FunctionExpression':
+    const subCompiler = new Compiler(this.settings);
+    subCompiler.compileBlock(e.body); 
+    subCompiler.emit('RETURN', 0, 1);
+    
+    const subBytecode = { 
+        code: (subCompiler as any).instructions, 
+        constants: (subCompiler as any).constants 
+    };
+
+    const subVM = `(function(...) 
+        ${generateVM(subBytecode)} 
+    end)`;
+    
+    this.emit('LOADK', reg, this.addK(subVM));
+    break;
             case 'Member':
                 this.compileExpr(e.base, reg);
                 const keyR = reg + 1;

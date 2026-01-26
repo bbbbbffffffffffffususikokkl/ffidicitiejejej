@@ -25,16 +25,22 @@ export function generateVM(bytecode: any): string {
             [3] = function(i) if type(Env) == "table" then Env[Const[i[3]+1]] = Stk[i[2]] end end,
             [4] = function(i) Stk[i[2]] = Stk[i[3]][Stk[i[4]]] end,
             [5] = function(i) Stk[i[2]][Stk[i[3]]] = Stk[i[4]] end,
-            [6] = function(i) 
-                local func = Stk[i[2]]
-                if type(func) ~= "function" then return end
-                local args = {}
-                if i[3] > 1 then for idx = 1, i[3] - 1 do args[idx] = Stk[i[2] + idx] end end
-                local res = {pcall(func, unpack(args))}
-                if res[1] and i[4] > 1 then
-                    for idx = 0, i[4] - 2 do Stk[i[2] + idx] = res[idx + 2] end
-                end
-            end,
+            [6] = function(i)
+    local func = Stk[i[2]]
+    if type(func) ~= "function" then return end
+    
+    local args = {}
+    for idx = 1, i[3] - 1 do 
+        args[idx] = Stk[i[2] + idx] 
+    end
+    
+    local res = {pcall(func, unpack(args))}
+    if res[1] then
+        for idx = 1, i[4] - 1 do
+            Stk[i[2] + idx - 1] = res[idx + 1]
+        end
+    end
+end,
             [7] = function(i) pc = #Inst + 1 end,
             [8] = function(i) Stk[i[2]] = Stk[i[3]] + Stk[i[4]] end,
             [9] = function(i) Stk[i[2]] = Stk[i[3]] - Stk[i[4]] end,
