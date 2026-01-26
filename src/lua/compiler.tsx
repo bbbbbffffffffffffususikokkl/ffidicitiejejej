@@ -1,6 +1,7 @@
 import { Statement, Expression, Chunk } from './ast';
 import { Parser } from './parser';
 import { encryptString } from './stringencryption';
+import { generateVM } from './vm';
 
 export class Compiler {
     private instructions: any[] = [];
