@@ -50,6 +50,21 @@ export class Compiler {
                 case 'CallStatement':
                     this.compileExpr(stat.expression, baseReg);
                     break;
+                // Inside compiler.tsx -> compileBlock
+case 'Function':
+    const gFuncName = (stat as any).name.name;
+    const tempReg = this.locals.length;
+
+    // 1. Compile the function as an expression
+    this.compileExpr({
+        type: 'FunctionExpression',
+        params: (stat as any).params,
+        body: (stat as any).body
+    } as any, tempReg);
+
+    // 2. Assign the resulting function to a Global variable
+    this.emit('SETGLOBAL', tempReg, this.addK(gFuncName));
+    break;
                 case 'Local':
                     // Loop through all variables in the local declaration
                     stat.vars.forEach((vName, i) => {
