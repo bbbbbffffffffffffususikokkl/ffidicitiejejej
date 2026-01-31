@@ -38,6 +38,18 @@ const PRESETS = {
 type EngineType = "LuaU" | "JavaScript (MCBE)";
 type PresetType = keyof typeof PRESETS;
 
+// Helper Component for Line Numbers
+const LineNumbers = ({ code }: { code: string }) => {
+  const lines = code.split('\n').length;
+  return (
+    <div className="flex flex-col text-right pr-3 border-r border-neutral-800 text-neutral-600 font-mono text-sm select-none min-w-[3rem] bg-neutral-900/30 py-4 overflow-hidden">
+      {Array.from({ length: lines || 1 }, (_, i) => (
+        <div key={i + 1} className="leading-6 h-6">{i + 1}</div>
+      ))}
+    </div>
+  );
+};
+
 export default function App() {
   const [engine, setEngine] = useState<EngineType>("LuaU");
   const [preset, setPreset] = useState<PresetType>("High");
@@ -45,6 +57,7 @@ export default function App() {
   const [outputCode, setOutputCode] = useState("");
   const [showResult, setShowResult] = useState(false);
   const [isCopied, setIsCopied] = useState(false);
+  const [errorStatus, setErrorStatus] = useState<{ msg: string; type: 'warn' | 'success' } | null>(null);
   
   const [customSettings, setCustomSettings] = useState({
     stringEncryption: true,
@@ -68,6 +81,7 @@ export default function App() {
 
   const handleObfuscate = () => {
     if (!inputCode) return;
+    setErrorStatus(null);
     setTimeout(() => {
         try {
             const result = obfuscateCode(inputCode, engine, preset, customSettings);
@@ -91,11 +105,24 @@ export default function App() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = 'obfuscated.lua';
+    a.download = engine === "LuaU" ? 'obfuscated.lua' : 'obfuscated.js';
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
+  };
+
+  const checkLuaUErrors = () => {
+    if (!outputCode) return;
+    // Check for common exploit environment requirements
+    const exploitFuncs = ['getgenv', 'getreg', 'getrenv', 'getfenv', 'hookfunction', 'hookmetamethod'];
+    const hasExploitFuncs = exploitFuncs.some(f => outputCode.includes(f));
+    
+    if (hasExploitFuncs) {
+      setErrorStatus({ msg: "Requires Exploit Environment (Exploit Functions Detected)", type: 'warn' });
+    } else {
+      setErrorStatus({ msg: "No Runtime Errors Detected", type: 'success' });
+    }
   };
 
   const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -256,16 +283,19 @@ export default function App() {
                 Upload File
              </button>
           </div>
-          <textarea
-            value={inputCode}
-            onChange={(e) => {
-              setInputCode(e.target.value);
-              if (showResult) setShowResult(false);
-            }}
-            placeholder={placeholderText}
-            className="w-full h-48 bg-neutral-900 border border-neutral-800 rounded-xl p-4 font-mono text-sm outline-none focus:border-indigo-500 transition-colors placeholder:text-neutral-700 resize-none"
-            spellCheck={false}
-          />
+          <div className="flex bg-neutral-900 border border-neutral-800 rounded-xl overflow-hidden focus-within:border-indigo-500 transition-colors">
+            <LineNumbers code={inputCode} />
+            <textarea
+              value={inputCode}
+              onChange={(e) => {
+                setInputCode(e.target.value);
+                if (showResult) setShowResult(false);
+              }}
+              placeholder={placeholderText}
+              className="w-full h-48 bg-transparent p-4 font-mono text-sm outline-none placeholder:text-neutral-700 resize-none whitespace-pre overflow-auto leading-6"
+              spellCheck={false}
+            />
+          </div>
         </div>
 
         <button
@@ -278,7 +308,20 @@ export default function App() {
         {showResult && (
           <div className="space-y-2 animate-in slide-in-from-bottom-4 duration-500">
             <div className="flex items-center justify-between ml-1">
-              <label className="text-xs font-bold uppercase tracking-wider text-emerald-500">Obfuscated Result</label>
+              <div className="flex items-center gap-3">
+                <label className="text-xs font-bold uppercase tracking-wider text-emerald-500">Obfuscated Result</label>
+                <button 
+                  onClick={checkLuaUErrors}
+                  className="px-2 py-0.5 bg-neutral-800 border border-neutral-700 rounded text-[10px] font-bold text-neutral-400 hover:bg-neutral-700 hover:text-white transition-all"
+                >
+                  Errors?
+                </button>
+                {errorStatus && (
+                  <span className={`text-[10px] font-bold ${errorStatus.type === 'warn' ? 'text-amber-400' : 'text-emerald-400'} animate-in fade-in slide-in-from-left-2`}>
+                    {errorStatus.msg}
+                  </span>
+                )}
+              </div>
               <div className="flex items-center gap-4">
                 <button 
                   onClick={handleDownload}
@@ -300,7 +343,7 @@ export default function App() {
               <textarea
                 readOnly
                 value={outputCode}
-                className="w-full h-48 bg-neutral-950 border border-emerald-900/30 rounded-xl p-4 font-mono text-sm text-emerald-100/80 outline-none resize-none focus:ring-1 focus:ring-emerald-500/50"
+                className="w-full h-48 bg-neutral-950 border border-emerald-900/30 rounded-xl p-4 font-mono text-sm text-emerald-100/80 outline-none resize-none focus:ring-1 focus:ring-emerald-500/50 whitespace-pre overflow-auto"
               />
               <div className="absolute inset-0 rounded-xl bg-gradient-to-tr from-emerald-500/5 to-transparent pointer-events-none" />
             </div>
