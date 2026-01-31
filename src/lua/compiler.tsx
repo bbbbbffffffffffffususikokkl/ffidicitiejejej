@@ -56,9 +56,13 @@ export class Compiler {
     this.emit('JMP', 0, 0); 
 
     this.compileBlock(stat.body);
-    const offset = -(this.instructions.length - startJmp + 1);
-    this.emit('JMP', 0, offset);
     
+    // Calculate the jump back to the condition
+    // We add +1 because the VM increments PC immediately upon reading the instruction
+    const backwardOffset = -(this.instructions.length - startJmp + 1);
+    this.emit('JMP', 0, backwardOffset); 
+    
+    // Set the exit jump (forward) for when the condition is false
     this.instructions[exitJmpIdx].b = this.instructions.length - exitJmpIdx;
     break;
                 case 'CallStatement':
