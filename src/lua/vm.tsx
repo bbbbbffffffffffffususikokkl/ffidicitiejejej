@@ -39,8 +39,6 @@ export function generateVM(bytecode: any): string {
         for idx = 1, nrResults do
             Stk[i[2] + idx - 1] = res[idx + 1]
         end
-    else
-        error(res[2])
     end
 end,
             [7] = function(i) pc = #Inst + 1 end,
