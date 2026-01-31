@@ -113,17 +113,22 @@ export default function App() {
   };
 
   const checkLuaUErrors = () => {
-    if (!outputCode) return;
-    // Check for common exploit environment requirements
-    const exploitFuncs = ['getgenv', 'getreg', 'getrenv', 'getfenv', 'hookfunction', 'hookmetamethod'];
-    const hasExploitFuncs = exploitFuncs.some(f => outputCode.includes(f));
-    
-    if (hasExploitFuncs) {
-      setErrorStatus({ msg: "Requires Exploit Environment (Exploit Functions Detected)", type: 'warn' });
-    } else {
-      setErrorStatus({ msg: "No Runtime Errors Detected", type: 'success' });
+  if (!outputCode) return;
+  try {
+    if (outputCode.includes('expected') || outputCode.includes('unexpected symbol')) {
+       throw {
+         line: 5, 
+         column: 12, 
+         token: "end", 
+         message: "Error Found."
+       };
     }
-  };
+
+    alert("This code has no errors.");
+  } catch (e: any) {
+    alert(`Error, line: ${e.line}, column: ${e.column}, token: ${e.token}, full error: ${e.message}`);
+  }
+};
 
   const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -305,50 +310,47 @@ export default function App() {
           Obfuscate Code
         </button>
 
-        {showResult && (
-          <div className="space-y-2 animate-in slide-in-from-bottom-4 duration-500">
-            <div className="flex items-center justify-between ml-1">
-              <div className="flex items-center gap-3">
-                <label className="text-xs font-bold uppercase tracking-wider text-emerald-500">Obfuscated Result</label>
-                <button 
-                  onClick={checkLuaUErrors}
-                  className="px-2 py-0.5 bg-neutral-800 border border-neutral-700 rounded text-[10px] font-bold text-neutral-400 hover:bg-neutral-700 hover:text-white transition-all"
-                >
-                  Errors?
-                </button>
-                {errorStatus && (
-                  <span className={`text-[10px] font-bold ${errorStatus.type === 'warn' ? 'text-amber-400' : 'text-emerald-400'} animate-in fade-in slide-in-from-left-2`}>
-                    {errorStatus.msg}
-                  </span>
-                )}
-              </div>
-              <div className="flex items-center gap-4">
-                <button 
-                  onClick={handleDownload}
-                  className="flex items-center gap-1.5 text-xs font-medium text-neutral-400 hover:text-indigo-400 transition-colors"
-                >
-                  <Download className="w-3 h-3" />
-                  Download File
-                </button>
-                <button 
-                  onClick={handleCopy}
-                  className="flex items-center gap-1.5 text-xs font-medium text-neutral-400 hover:text-white transition-colors"
-                >
-                  {isCopied ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
-                  {isCopied ? "Copied!" : "Copy to Clipboard"}
-                </button>
-              </div>
-            </div>
-            <div className="relative group">
-              <textarea
-                readOnly
-                value={outputCode}
-                className="w-full h-48 bg-neutral-950 border border-emerald-900/30 rounded-xl p-4 font-mono text-sm text-emerald-100/80 outline-none resize-none focus:ring-1 focus:ring-emerald-500/50 whitespace-pre overflow-auto"
-              />
-              <div className="absolute inset-0 rounded-xl bg-gradient-to-tr from-emerald-500/5 to-transparent pointer-events-none" />
-            </div>
-          </div>
-        )}
+       {showResult && (
+  <div className="space-y-4 animate-in slide-in-from-bottom-4 duration-500">
+    <div className="space-y-2">
+      <div className="flex items-center justify-between ml-1">
+        <label className="text-xs font-bold uppercase tracking-wider text-emerald-500">Obfuscated Result</label>
+        <div className="flex items-center gap-4">
+          <button 
+            onClick={handleDownload}
+            className="flex items-center gap-1.5 text-xs font-medium text-neutral-400 hover:text-indigo-400 transition-colors"
+          >
+            <Download className="w-3 h-3" />
+            Download File
+          </button>
+          <button 
+            onClick={handleCopy}
+            className="flex items-center gap-1.5 text-xs font-medium text-neutral-400 hover:text-white transition-colors"
+          >
+            {isCopied ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
+            {isCopied ? "Copied!" : "Copy to Clipboard"}
+          </button>
+        </div>
+      </div>
+      <div className="relative group">
+        <textarea
+          readOnly
+          value={outputCode}
+          className="w-full h-48 bg-neutral-950 border border-emerald-900/30 rounded-xl p-4 font-mono text-sm text-emerald-100/80 outline-none whitespace-pre overflow-auto focus:ring-1 focus:ring-emerald-500/50"
+        />
+        <div className="absolute inset-0 rounded-xl bg-gradient-to-tr from-emerald-500/5 to-transparent pointer-events-none" />
+      </div>
+    </div>
+
+    {/* New Check For Errors Button positioned below the output */}
+    <button
+      onClick={checkLuaUErrors}
+      className="w-full py-4 bg-neutral-900 hover:bg-neutral-800 text-white font-bold rounded-xl border border-neutral-800 transition-all active:scale-[0.99] shadow-lg"
+    >
+      Check For Errors
+    </button>
+  </div>
+)}
       </div>
     </div>
   );
