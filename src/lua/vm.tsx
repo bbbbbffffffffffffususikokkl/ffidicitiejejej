@@ -11,6 +11,7 @@ export function generateVM(bytecode: any): string {
     return `
         local Inst, Const = {${instStr}}, {${constStr}}
         local Stk = {}
+        local CallStack = {}
         local pc = 1
         local Env = getfenv(1)
         if #Inst == 0 then return end
@@ -26,22 +27,31 @@ export function generateVM(bytecode: any): string {
             [4] = function(i) Stk[i[2]] = Stk[i[3]][Stk[i[4]]] end,
             [5] = function(i) Stk[i[2]][Stk[i[3]]] = Stk[i[4]] end,
             [6] = function(i)
-    local func = Stk[i[2]]
-    local args = {}
-    local nrArgs = i[3] - 1
-    for idx = 1, nrArgs do 
-        args[idx] = Stk[i[2] + idx] 
-    end
-    
-    local res = {pcall(func, unpack(args))}
-    if res[1] then
-        local nrResults = i[4] - 1
-        for idx = 1, nrResults do
-            Stk[i[2] + idx - 1] = res[idx + 1]
-        end
-    end
-end,
-            [7] = function(i) pc = #Inst + 1 end,
+                local func = Stk[i[2]]
+                local args = {}
+                local nrArgs = i[3] - 1
+                for idx = 1, nrArgs do 
+                    args[idx] = Stk[i[2] + idx] 
+                end
+                if type(func) == "function" then
+                    local res = {pcall(func, unpack(args))}
+                    if res[1] then
+                        local nrResults = i[4] - 1
+                        for idx = 1, nrResults do
+                            Stk[i[2] + idx - 1] = res[idx + 1]
+                        end
+                    else
+                        error(res[2])
+                    end
+                end
+            end,
+            [7] = function(i)
+                if #CallStack > 0 then
+                    pc = table.remove(CallStack)
+                else
+                    pc = #Inst + 1
+                end
+            end,
             [8] = function(i) Stk[i[2]] = Stk[i[3]] + Stk[i[4]] end,
             [9] = function(i) Stk[i[2]] = Stk[i[3]] - Stk[i[4]] end,
             [10] = function(i) Stk[i[2]] = Stk[i[3]] * Stk[i[4]] end,

@@ -48,16 +48,16 @@ export class Compiler {
         stats.forEach(stat => {
             const baseReg = this.locals.length;
             switch (stat.type) {
-    case 'While':
+                case 'While':
     const startJmp = this.instructions.length;
     this.compileExpr(stat.condition, baseReg);
-    
+
     const exitJmpIdx = this.instructions.length;
     this.emit('JMP', 0, 0); 
 
     this.compileBlock(stat.body);
-    
-    this.emit('JMP', 0, -(this.instructions.length - startJmp + 1));
+    const offset = -(this.instructions.length - startJmp + 1);
+    this.emit('JMP', 0, offset);
     
     this.instructions[exitJmpIdx].b = this.instructions.length - exitJmpIdx;
     break;
