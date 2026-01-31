@@ -49,21 +49,24 @@ export class Compiler {
             const baseReg = this.locals.length;
             switch (stat.type) {
                 case 'While':
-    const startJmp = this.instructions.length;
+    const condStart = this.instructions.length;
+    
+    // Compile condition (result goes to baseReg)
     this.compileExpr(stat.condition, baseReg);
-
-    const exitJmpIdx = this.instructions.length;
-    this.emit('JMP', 0, 0); 
-
+    
+    // Jump FORWARD if condition is FALSE (skip loop body)
+    // We'll use EQ opcode: if condition == false, skip body
+    const falseConstIdx = this.addK(false);
+    this.emit('LOADK', baseReg + 1, falseConstIdx);
+    this.emit('EQ', baseReg, baseReg, baseReg + 1); // Skip if condition == false
+    
+    // Compile loop body
     this.compileBlock(stat.body);
     
-    // Calculate the jump back to the condition
-    // We add +1 because the VM increments PC immediately upon reading the instruction
-    const backwardOffset = -(this.instructions.length - startJmp + 1);
-    this.emit('JMP', 0, backwardOffset); 
-    
-    // Set the exit jump (forward) for when the condition is false
-    this.instructions[exitJmpIdx].b = this.instructions.length - exitJmpIdx;
+    // Jump BACK to condition check
+    // Calculate offset: we want to jump back to condStart
+    const backOffset = condStart - this.instructions.length;
+    this.emit('JMP', 0, backOffset);
     break;
                 case 'CallStatement':
                     this.compileExpr(stat.expression, baseReg);

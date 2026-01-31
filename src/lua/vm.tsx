@@ -27,27 +27,25 @@ export function generateVM(bytecode: any): string {
             [4] = function(i) Stk[i[2]] = Stk[i[3]][Stk[i[4]]] end,
             [5] = function(i) Stk[i[2]][Stk[i[3]]] = Stk[i[4]] end,
             [6] = function(i)
-    local func = Stk[i[2]]
-    local args = {}
-    local nrArgs = i[3] - 1
-    for idx = 1, nrArgs do 
-        args[idx] = Stk[i[2] + idx] 
-    end
-
-    if type(func) == "function" then
-        table.insert(CallStack, pc) 
-        
-        local res = {pcall(func, unpack(args))}
-        if res[1] then
-            local nrResults = i[4] - 1
-            for idx = 1, nrResults do
-                Stk[i[2] + idx - 1] = res[idx + 1]
-            end
-            
-            pc = table.remove(CallStack) 
-        end
-    end
-end,
+                local func = Stk[i[2]]
+                local args = {}
+                local nrArgs = i[3] - 1
+                for idx = 1, nrArgs do 
+                    args[idx] = Stk[i[2] + idx] 
+                end
+                
+                if type(func) == "function" then
+                    local res = {pcall(func, unpack(args))}
+                    if res[1] then
+                        local nrResults = i[4] - 1
+                        for idx = 1, nrResults do
+                            Stk[i[2] + idx - 1] = res[idx + 1]
+                        end
+                    else
+                        error(res[2])
+                    end
+                end
+            end,
             [7] = function(i)
                 if #CallStack > 0 then
                     pc = table.remove(CallStack)
@@ -65,10 +63,24 @@ end,
             [15] = function(i) Stk[i[2]] = not Stk[i[3]] end,
             [16] = function(i) Stk[i[2]] = #Stk[i[3]] end,
             [17] = function(i) Stk[i[2]] = Stk[i[3]] .. Stk[i[4]] end,
-[18] = function(i) 
-    pc = pc + i[3]
-end,
-            [19] = function(i) if Stk[i[3]] ~= Stk[i[4]] then pc = pc + 1 end end,
+            [18] = function(i) 
+                pc = pc + i[3] - 1
+            end,
+            [19] = function(i) 
+                if Stk[i[3]] == Stk[i[4]] then
+                    pc = pc + 1
+                end
+            end,
+            [20] = function(i)
+                if Stk[i[3]] < Stk[i[4]] then
+                    pc = pc + 1
+                end
+            end,
+            [21] = function(i)
+                if Stk[i[3]] <= Stk[i[4]] then
+                    pc = pc + 1
+                end
+            end,
             [22] = function(i) Stk[i[2]] = {} end,
         }
         while pc <= #Inst do
