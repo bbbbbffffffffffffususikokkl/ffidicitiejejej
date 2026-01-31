@@ -48,6 +48,19 @@ export class Compiler {
         stats.forEach(stat => {
             const baseReg = this.locals.length;
             switch (stat.type) {
+    case 'While':
+    const startJmp = this.instructions.length;
+    this.compileExpr(stat.condition, baseReg);
+    
+    const exitJmpIdx = this.instructions.length;
+    this.emit('JMP', 0, 0); 
+
+    this.compileBlock(stat.body);
+    
+    this.emit('JMP', 0, -(this.instructions.length - startJmp + 1));
+    
+    this.instructions[exitJmpIdx].b = this.instructions.length - exitJmpIdx;
+    break;
                 case 'CallStatement':
                     this.compileExpr(stat.expression, baseReg);
                     break;
@@ -79,16 +92,19 @@ export class Compiler {
                     });
                     break;
                 case 'LocalFunction':
-                    const funcName = (stat as any).name.name;
-                    const reg = this.locals.length;
-                    this.locals.push(funcName);
+    const funcName = (stat as any).name.name;
+    const reg = this.locals.length;
+    
+    // 1. Register the local variable name
+    this.locals.push(funcName);
 
-                    this.compileExpr({
-                        type: 'FunctionExpression',
-                        params: (stat as any).params,
-                        body: (stat as any).body
-                    } as any, reg);
-                    break;
+    // 2. Compile the function expression and store it in that register
+    this.compileExpr({
+        type: 'FunctionExpression',
+        params: (stat as any).params,
+        body: (stat as any).body
+    } as any, reg);
+    break;
                 case 'Assignment':
                     const valStartReg = baseReg;
                     stat.init.forEach((expr, i) => {

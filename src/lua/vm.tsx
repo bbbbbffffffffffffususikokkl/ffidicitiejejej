@@ -27,18 +27,20 @@ export function generateVM(bytecode: any): string {
             [5] = function(i) Stk[i[2]][Stk[i[3]]] = Stk[i[4]] end,
             [6] = function(i)
     local func = Stk[i[2]]
-    if type(func) ~= "function" then return end
-    
     local args = {}
-    for idx = 1, i[3] - 1 do 
+    local nrArgs = i[3] - 1
+    for idx = 1, nrArgs do 
         args[idx] = Stk[i[2] + idx] 
     end
     
     local res = {pcall(func, unpack(args))}
     if res[1] then
-        for idx = 1, i[4] - 1 do
+        local nrResults = i[4] - 1
+        for idx = 1, nrResults do
             Stk[i[2] + idx - 1] = res[idx + 1]
         end
+    else
+        error(res[2])
     end
 end,
             [7] = function(i) pc = #Inst + 1 end,
