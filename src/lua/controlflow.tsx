@@ -1,3 +1,5 @@
+import { genVar } from './antitamper';
+
 export function getDeadCode(preset: string): string {
     if (preset === "Test") return "";
     
