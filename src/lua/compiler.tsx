@@ -69,8 +69,9 @@ export class Compiler {
     this.emit('JMP', 0, backOffset);
     break;
                 case 'CallStatement':
-                    this.compileExpr(stat.expression, baseReg);
-                    break;
+    this.compileExpr(stat.expression, baseReg);
+    // Don't add extra CALL - compileExpr for Call already emits it
+    break;
                 case 'Function': {
                     // FIX 1: Add support for global function declarations
                     const gFuncName = (stat as any).name.name;
@@ -183,10 +184,10 @@ export class Compiler {
                 this.emit('LOADK', reg, this.addK(null));
                 break;
             case 'Identifier':
-                const lIdx = this.locals.indexOf(e.name);
-                if (lIdx !== -1) this.emit('MOVE', reg, lIdx);
-                else this.emit('GETGLOBAL', reg, this.addK(e.name));
-                break;
+    const lIdx = this.locals.indexOf(e.name);
+    if (lIdx !== -1) this.emit('MOVE', reg, lIdx);
+    else this.emit('GETGLOBAL', reg, this.addK(e.name));
+    break;
             case 'Unary':
                 this.compileExpr(e.argument, reg);
                 const uOps: Record<string, keyof typeof this.opMap> = { 'not': 'NOT', '#': 'LEN', '-': 'UNM' };
@@ -210,22 +211,25 @@ export class Compiler {
                     if (bOps[e.operator]) this.emit(bOps[e.operator], reg, reg, reg + 1);
                 }
                 break;
-             case 'FunctionExpression':
-                const subCompiler = new Compiler(this.settings);
-                subCompiler.compileBlock(e.body); 
-                subCompiler.emit('RETURN', 0, 1);
-                
-                const subBytecode = { 
-                    code: (subCompiler as any).instructions, 
-                    constants: (subCompiler as any).constants 
-                };
+            case 'FunctionExpression':
+    const subCompiler = new Compiler(this.settings);
+    subCompiler.compileBlock(e.body); 
+    subCompiler.emit('RETURN', 0, 1);
+    
+    const subBytecode = { 
+        code: subCompiler.instructions, 
+        constants: subCompiler.constants 
+    };
 
-                const subVM = `(function(...) 
-                    ${generateVM(subBytecode)} 
-                end)`;
-                
-                this.emit('LOADK', reg, this.addK(subVM));
-                break;
+    // FIX: Make it a self-executing function that returns the actual function
+    const subVM = `(function() 
+        return function(...) 
+            ${generateVM(subBytecode)} 
+        end 
+    end)()`;
+    
+    this.emit('LOADK', reg, this.addK(subVM));
+    break;
             case 'Member':
                 this.compileExpr(e.base, reg);
                 const keyR = reg + 1;
