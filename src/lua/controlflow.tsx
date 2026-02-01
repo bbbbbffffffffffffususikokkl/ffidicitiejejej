@@ -1,4 +1,4 @@
-import { genVar } from './antitamper';
+import { genVar, obfNum } from './antitamper';
 
 export function getDeadCode(preset: string): string {
     if (preset === "Test") return "";
